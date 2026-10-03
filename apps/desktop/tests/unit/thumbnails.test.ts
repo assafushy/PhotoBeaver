@@ -52,14 +52,18 @@ describe('ThumbnailService with connector-local', () => {
     const thumbsDir = path.join(temp.dir, 'thumbs');
     const landscape = byName('landscape.jpg');
     expect(landscape).toMatchObject({ thumb_state: 'ready', width: 400, height: 300 });
-    expect(await sharp(readFileSync(thumbPath(thumbsDir, landscape.id, 256))).metadata()).toMatchObject({
+    expect(
+      await sharp(readFileSync(thumbPath(thumbsDir, landscape.id, 256))).metadata(),
+    ).toMatchObject({
       format: 'webp',
       width: 341,
       height: 256,
     });
     expect(byName('rotated.jpg')).toMatchObject({ width: 300, height: 400 });
     const small = byName('small.png');
-    expect(await sharp(readFileSync(thumbPath(thumbsDir, small.id, 1024))).metadata()).toMatchObject({
+    expect(
+      await sharp(readFileSync(thumbPath(thumbsDir, small.id, 1024))).metadata(),
+    ).toMatchObject({
       width: 100,
       height: 50,
     });
