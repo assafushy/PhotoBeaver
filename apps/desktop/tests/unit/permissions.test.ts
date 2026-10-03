@@ -1,3 +1,5 @@
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { isHostAllowed } from '../../src/plugin-host/permissions/host-allowlist';
 import { FolderGrants } from '../../src/plugin-host/permissions/filesystem';
@@ -32,7 +34,7 @@ describe('filesystem guard', () => {
   it('checks string, URL and Buffer paths and ignores file descriptors', () => {
     const grants = new FolderGrants(['/allowed']);
     expect(() => grants.assert('/allowed/a.jpg')).not.toThrow();
-    expect(() => grants.assert(new URL('file:///allowed/b.jpg'))).not.toThrow();
+    expect(() => grants.assert(pathToFileURL(path.resolve('/allowed/b.jpg')))).not.toThrow();
     expect(() => grants.assert(Buffer.from('/etc/passwd'))).toThrow(/not allowed/);
     expect(() => grants.assert(7)).not.toThrow();
     grants.add('/etc');
