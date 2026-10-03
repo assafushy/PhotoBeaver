@@ -57,6 +57,22 @@ const api: PbApi = {
     pause: byId('sources.pause'),
     resume: byId('sources.resume'),
   },
+  plugins: {
+    list: () => invoke('plugins.list'),
+    setEnabled: (id, enabled) => invoke('plugins.setEnabled', { id, enabled }),
+    reEnable: byId('plugins.reEnable'),
+    uninstall: (id, removeData) => invoke('plugins.uninstall', { id, removeData }),
+    logs: (id, lines) => invoke('plugins.logs', { id, lines }),
+    pickPackage: () => invoke('plugins.pickPackage'),
+    inspectPackage: (path) => invoke('plugins.inspectPackage', { path }),
+    installStaged: (token) => invoke('plugins.installStaged', { token }),
+    discardStaged: (token) => invoke('plugins.discardStaged', { token }),
+    restoreDefaults: () => invoke('plugins.restoreDefaults'),
+    getDeveloperMode: () => invoke('plugins.getDeveloperMode'),
+    setDeveloperMode: (enabled) => invoke('plugins.setDeveloperMode', { enabled }),
+    loadUnpacked: () => invoke('plugins.loadUnpacked'),
+    reload: byId('plugins.reload'),
+  },
   events: { on },
 };
 

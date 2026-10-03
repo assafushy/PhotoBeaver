@@ -1,0 +1,21 @@
+{
+  "id": "{{id}}",
+  "name": "{{name}}",
+  "version": "0.1.0",
+  "type": "connector",
+  "apiVersion": "1",
+  "main": "dist/index.js",
+  "description": "{{name}} connector for Photo Beaver",
+  "permissions": {
+    "network": [],
+    "filesystem": "none"
+  },
+  "connector": {
+    "syncModes": ["poll", "manual"],
+    "defaultIntervalSec": 3600
+  },
+  "configSchema": {
+    "type": "object",
+    "properties": {}
+  }
+}

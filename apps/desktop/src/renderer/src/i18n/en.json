@@ -77,9 +77,74 @@
       "error": "Sync keeps failing",
       "auth_required": "Needs reconnecting",
       "paused": "Paused"
-    }
+    },
+    "connectorMissing": "The connector for this source is not installed or is disabled. Enable it in Plugins."
   },
   "placeholder": {
     "comingSoon": "This screen arrives in a later milestone."
+  },
+  "plugins": {
+    "tab": {
+      "installed": "Installed",
+      "store": "Store",
+      "developer": "Developer"
+    },
+    "storeLater": "The plugin store arrives in a later version. Until then, install plugins from a file.",
+    "installFromFile": "Install from file",
+    "restoreDefaults": "Restore default plugins",
+    "install": "Install",
+    "consentTitle": "Install {{name}}?",
+    "unverified": "This plugin comes from a file, not the plugin store, so nobody has reviewed it. Only install plugins you trust.",
+    "replaces": "Replaces the installed version {{version}}.",
+    "enable": "Enable",
+    "disable": "Disable",
+    "reEnable": "Re-enable",
+    "reload": "Reload",
+    "viewLogs": "View logs",
+    "logsTitle": "Logs: {{name}}",
+    "noLogs": "Nothing logged yet.",
+    "uninstall": "Uninstall",
+    "uninstallTitle": "Uninstall {{name}}?",
+    "uninstallBody_one": "It has {{count}} source. Keep its photos in your library, or remove them too?",
+    "uninstallBody_other": "It has {{count}} sources. Keep their photos in your library, or remove them too?",
+    "keepData": "Uninstall, keep data",
+    "removeData": "Uninstall and remove data",
+    "crashedBody": "This plugin stopped working repeatedly, so Photo Beaver turned it off. Check the logs, then re-enable it.",
+    "running_one": "Running · restarted {{count}} time",
+    "running_other": "Running · restarted {{count}} times",
+    "stopped_one": "Not running · restarted {{count}} time",
+    "stopped_other": "Not running · restarted {{count}} times",
+    "developerMode": "Developer mode",
+    "developerHelp": "Load a plugin from a folder on this computer. While developer mode is on, \"pb-plugin dev\" reloads it every time you save.",
+    "loadUnpacked": "Load unpacked plugin",
+    "status": {
+      "ok": "Enabled",
+      "disabled": "Disabled",
+      "crashed": "Crashed",
+      "invalid": "Cannot load",
+      "uninstalled": "Uninstalled, data kept"
+    },
+    "source": {
+      "builtin": "Default",
+      "registry": "Store",
+      "file": "From file",
+      "dev": "Developer"
+    },
+    "perm": {
+      "network": "Connects to {{hosts}}",
+      "noNetwork": "No network access",
+      "fs": {
+        "none": "No access to your files",
+        "user-selected": "Reads folders you choose"
+      },
+      "originals": {
+        "thumbnail": "Reads thumbnails",
+        "read": "Reads original photos and videos"
+      },
+      "merge": "Can merge duplicate photos",
+      "oauth": "Signs in to an online account",
+      "native": "Runs native code (not limited by Photo Beaver's protections)",
+      "gpu": "Uses the graphics card"
+    }
   }
 }

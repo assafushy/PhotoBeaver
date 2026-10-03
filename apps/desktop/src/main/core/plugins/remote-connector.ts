@@ -21,6 +21,45 @@ export const BYTES_INACTIVITY_MS = 5 * MINUTE_MS;
 
 type Ctx = SourceContext<unknown>;
 
+interface WatchRegistration {
+  watchId: string;
+  contextId: string;
+  release: () => void;
+}
+
+interface StreamRequest {
+  ctx: Ctx;
+  method: string;
+  inactivityMs: number;
+  params: (contextId: string) => object;
+}
+
+/**
+ * Streams a host method while holding a call context: the context opens when
+ * the stream starts and is released when it ends.
+ *
+ * @param connection - Live connection to the plugin host.
+ * @param contexts - Call context registry.
+ * @param request - The method, its params builder and stream options.
+ * @yields Each value the host streams back.
+ */
+async function* streamWithContext<T>(
+  connection: Connection,
+  contexts: CallContexts,
+  request: StreamRequest,
+): AsyncGenerator<T> {
+  const { ctx, method, inactivityMs, params } = request;
+  const { contextId, release } = contexts.open(ctx);
+  try {
+    yield* connection.peer.stream<T>(method, params(contextId), {
+      inactivityMs,
+      signal: ctx.signal,
+    });
+  } finally {
+    release();
+  }
+}
+
 /**
  * Folders a source config grants: values of `format: "directory"` fields (SPEC 6.6).
  *
@@ -94,6 +133,23 @@ export class RemoteConnector implements ConnectorPlugin<unknown> {
     ctx: SyncContext<unknown>,
     onChange: (batch: SyncBatch) => void,
   ): Promise<Unsubscribe> {
+    const { watchId, contextId, release } = this.registerWatch(ctx, onChange);
+    try {
+      await this.handle.track((c) =>
+        c.peer.request(
+          HOST_METHODS.watch,
+          { ...this.base(ctx, contextId), watchId },
+          { timeoutMs: TEST_TIMEOUT_MS },
+        ),
+      );
+    } catch (error) {
+      release();
+      throw error;
+    }
+    return () => this.unwatch(watchId, release);
+  }
+
+  private registerWatch(ctx: Ctx, onChange: (batch: SyncBatch) => void): WatchRegistration {
     const watchId = ulid();
     const opened = this.contexts.open(ctx);
     this.contexts.addWatch(watchId, onChange);
@@ -103,19 +159,7 @@ export class RemoteConnector implements ConnectorPlugin<unknown> {
       opened.release(),
       this.handle.watchCount--
     );
-    try {
-      await this.handle.track((c) =>
-        c.peer.request(
-          HOST_METHODS.watch,
-          { ...this.base(ctx, opened.contextId), watchId },
-          { timeoutMs: TEST_TIMEOUT_MS },
-        ),
-      );
-    } catch (error) {
-      release();
-      throw error;
-    }
-    return () => this.unwatch(watchId, release);
+    return { watchId, contextId: opened.contextId, release };
   }
 
   private unwatch(watchId: string, release: () => void): void {
@@ -156,18 +200,14 @@ export class RemoteConnector implements ConnectorPlugin<unknown> {
     extra: object,
     inactivityMs: number,
   ): AsyncIterable<T> {
-    const self = this;
-    return this.handle.trackStream(async function* (connection: Connection) {
-      const { contextId, release } = self.contexts.open(ctx);
-      try {
-        yield* connection.peer.stream<T>(
-          method,
-          { ...self.base(ctx, contextId), ...extra },
-          { inactivityMs, signal: ctx.signal },
-        );
-      } finally {
-        release();
-      }
-    });
+    const request: StreamRequest = {
+      ctx,
+      method,
+      inactivityMs,
+      params: (contextId) => ({ ...this.base(ctx, contextId), ...extra }),
+    };
+    return this.handle.trackStream((connection: Connection) =>
+      streamWithContext<T>(connection, this.contexts, request),
+    );
   }
 }

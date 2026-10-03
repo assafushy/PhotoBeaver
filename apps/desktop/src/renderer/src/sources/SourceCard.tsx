@@ -2,6 +2,7 @@ import type { PbEvents, SourceSummary } from '@photobeaver/shared';
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { ErrorText } from '../components/ErrorText';
 import { buttonStyles, Modal } from '../components/Modal';
 
 const relative = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
@@ -138,6 +139,18 @@ function Actions({ source }: { source: SourceSummary }) {
   );
 }
 
+function SourceAlerts({ source }: { source: SourceSummary }) {
+  const { t } = useTranslation();
+  return (
+    <>
+      {!source.connectorAvailable && <ErrorText>{t('sources.connectorMissing')}</ErrorText>}
+      {source.lastError && (
+        <ErrorText className="mt-1 text-sm text-red-600">{source.lastError}</ErrorText>
+      )}
+    </>
+  );
+}
+
 function SourceDetails({ source, progress }: { source: SourceSummary; progress?: Progress }) {
   return (
     <div className="min-w-0">
@@ -147,11 +160,7 @@ function SourceDetails({ source, progress }: { source: SourceSummary; progress?:
         {source.location ? ` · ${source.location}` : ''}
       </p>
       <StatusLine source={source} progress={progress} />
-      {source.lastError && (
-        <p role="alert" className="mt-1 text-sm text-red-600">
-          {source.lastError}
-        </p>
-      )}
+      <SourceAlerts source={source} />
     </div>
   );
 }

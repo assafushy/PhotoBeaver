@@ -37,25 +37,27 @@ function registerSourceCalls(services: HostServices, plugin: Connector): void {
   );
 }
 
-function registerByteCalls(services: HostServices, plugin: Connector): void {
-  const { peer } = services;
-  peer.handleStream(
+type ItemKey = { sourceId: string; externalId: string };
+type WatchEntry = { stop: Unsubscribe; abort: AbortController };
+
+function registerOriginalCall(services: HostServices, plugin: Connector): void {
+  services.peer.handleStream(
     HOST_METHODS.getOriginal,
     async function* (call, { signal }) {
-      const { item } = call as { item: { sourceId: string; externalId: string } };
+      const { item } = call as { item: ItemKey };
       yield* byteChunks(
         await plugin.getOriginal(sourceContext(services, call as never, signal), item),
       );
     },
     validatorOf(itemCallSchema),
   );
-  peer.handleStream(
+}
+
+function registerThumbnailCall(services: HostServices, plugin: Connector): void {
+  services.peer.handleStream(
     HOST_METHODS.getThumbnail,
     async function* (call, { signal }) {
-      const { item, size } = call as {
-        item: { sourceId: string; externalId: string };
-        size?: number;
-      };
+      const { item, size } = call as { item: ItemKey; size?: number };
       const stream = await plugin.getThumbnail?.(
         sourceContext(services, call as never, signal),
         item,
@@ -68,9 +70,17 @@ function registerByteCalls(services: HostServices, plugin: Connector): void {
   );
 }
 
-function registerWatchCalls(services: HostServices, plugin: Connector): void {
+function registerByteCalls(services: HostServices, plugin: Connector): void {
+  registerOriginalCall(services, plugin);
+  registerThumbnailCall(services, plugin);
+}
+
+function registerWatchCall(
+  services: HostServices,
+  plugin: Connector,
+  active: Map<string, WatchEntry>,
+): void {
   const { peer } = services;
-  const active = new Map<string, { stop: Unsubscribe; abort: AbortController }>();
   peer.handle(
     HOST_METHODS.watch,
     async (raw) => {
@@ -86,7 +96,10 @@ function registerWatchCalls(services: HostServices, plugin: Connector): void {
     },
     validatorOf(watchCallSchema),
   );
-  peer.handle(
+}
+
+function registerUnwatchCall(services: HostServices, active: Map<string, WatchEntry>): void {
+  services.peer.handle(
     HOST_METHODS.unwatch,
     (raw) => {
       const { watchId } = raw as { watchId: string };
@@ -96,6 +109,12 @@ function registerWatchCalls(services: HostServices, plugin: Connector): void {
     },
     validatorOf(unwatchCallSchema),
   );
+}
+
+function registerWatchCalls(services: HostServices, plugin: Connector): void {
+  const active = new Map<string, WatchEntry>();
+  registerWatchCall(services, plugin, active);
+  registerUnwatchCall(services, active);
 }
 
 /**

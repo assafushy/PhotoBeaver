@@ -4,6 +4,16 @@ import { FilesystemPermissionError, isPathAllowed, toAbsolutePath } from './path
 
 type AnyFn = (...args: unknown[]) => unknown;
 
+const realpathNative = fs.realpathSync.native;
+
+function withRealPath(dir: string): string[] {
+  try {
+    return [dir, realpathNative(dir)];
+  } catch {
+    return [dir];
+  }
+}
+
 const ONE_PATH = [
   'access',
   'appendFile',
@@ -44,11 +54,12 @@ export class FolderGrants {
   private readonly dirs = new Set<string>();
 
   constructor(initial: Iterable<string>) {
-    for (const dir of initial) this.dirs.add(dir);
+    for (const dir of initial) this.add(dir);
   }
 
+  /** Grants a folder under both its given and its real (symlink-resolved) path. */
   add(dir: string): void {
-    this.dirs.add(dir);
+    for (const variant of withRealPath(dir)) this.dirs.add(variant);
   }
 
   assert(value: unknown): void {

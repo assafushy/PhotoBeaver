@@ -118,9 +118,9 @@ describe('RemoteConnector over the host runtime', () => {
       sourceId: 's1',
       externalId: path.join(tree.root, 'big.jpg'),
     });
-    const bytes = Buffer.concat(
-      await Array.fromAsync(stream as unknown as AsyncIterable<Uint8Array>),
-    );
+    const chunks: Uint8Array[] = [];
+    for await (const chunk of stream as unknown as AsyncIterable<Uint8Array>) chunks.push(chunk);
+    const bytes = Buffer.concat(chunks);
     expect(bytes.equals(big)).toBe(true);
   });
 

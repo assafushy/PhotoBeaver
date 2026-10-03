@@ -1,0 +1,34 @@
+{
+  "name": "@photobeaver/plugin-cli",
+  "version": "0.1.0",
+  "description": "pb-plugin: build, develop, validate, test and pack Photo Beaver plugins",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "bin": {
+    "pb-plugin": "bin/pb-plugin.js"
+  },
+  "files": [
+    "bin",
+    "dist"
+  ],
+  "scripts": {
+    "build": "esbuild src/cli.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/cli.js --external:esbuild --log-level=warning",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "esbuild": "^0.28.2"
+  },
+  "devDependencies": {
+    "@photobeaver/plugin-sdk": "workspace:*",
+    "@photobeaver/shared": "workspace:*",
+    "@types/node": "^26.6.4",
+    "create-photobeaver-plugin": "workspace:*",
+    "vitest": "^5.0.3"
+  }
+}

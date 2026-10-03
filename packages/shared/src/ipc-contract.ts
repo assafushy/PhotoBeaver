@@ -60,6 +60,7 @@ export const sourceSummarySchema = z.object({
   id: z.string(),
   pluginId: z.string(),
   connectorName: z.string(),
+  connectorAvailable: z.boolean(),
   displayName: z.string(),
   location: z.string().nullable(),
   syncState: z.enum(SYNC_STATES),
@@ -109,6 +110,60 @@ export const assetDetailSchema = z.object({
   instances: z.array(assetInstanceSchema),
 });
 
+export const pluginPermissionsSchema = z.object({
+  network: z.array(z.string()),
+  filesystem: z.enum(['none', 'user-selected']),
+  oauth: z.boolean(),
+  originals: z.enum(['none', 'thumbnail', 'read']),
+  assets: z.enum(['none', 'merge']),
+  nativeModules: z.boolean(),
+  gpu: z.boolean(),
+});
+
+export const PLUGIN_STATUSES = ['ok', 'crashed', 'invalid', 'disabled', 'uninstalled'] as const;
+
+export const pluginSummarySchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  version: z.string(),
+  type: z.enum(['connector', 'enricher']),
+  description: z.string(),
+  enabled: z.boolean(),
+  status: z.enum(PLUGIN_STATUSES),
+  error: z.string().nullable(),
+  installSource: z.enum(['builtin', 'registry', 'file', 'dev']),
+  isDefault: z.boolean(),
+  permissions: pluginPermissionsSchema.nullable(),
+  running: z.boolean(),
+  pid: z.number().nullable(),
+  restarts: z.number().int(),
+  sourceCount: z.number().int(),
+  devPath: z.string().nullable(),
+});
+
+export const stagedPackageSchema = z.object({
+  token: z.string(),
+  id: z.string(),
+  name: z.string(),
+  version: z.string(),
+  type: z.enum(['connector', 'enricher']),
+  description: z.string(),
+  author: z.string().nullable(),
+  permissions: pluginPermissionsSchema,
+  sha256: z.string(),
+  verified: z.boolean(),
+  replacesVersion: z.string().nullable(),
+});
+
+const enabledInput = z.object({ id: z.string().min(1), enabled: z.boolean() });
+const uninstallInput = z.object({ id: z.string().min(1), removeData: z.boolean() });
+const logsInput = z.object({
+  id: z.string().min(1),
+  lines: z.number().int().min(1).max(2000).default(200),
+});
+const pathInput = z.object({ path: z.string().min(1) });
+const tokenInput = z.object({ token: z.string().min(1) });
+
 interface ChannelContract<I extends z.ZodType, O extends z.ZodType> {
   requires: Permission;
   input: I;
@@ -157,6 +212,64 @@ export const IPC_CONTRACT = {
   'sources.syncNow': channel({ requires: 'sources.sync', input: idInput, output: nothing }),
   'sources.pause': channel({ requires: 'sources.sync', input: idInput, output: nothing }),
   'sources.resume': channel({ requires: 'sources.sync', input: idInput, output: nothing }),
+  'plugins.list': channel({
+    requires: 'plugins.manage',
+    input: emptyInput,
+    output: z.array(pluginSummarySchema),
+  }),
+  'plugins.setEnabled': channel({
+    requires: 'plugins.manage',
+    input: enabledInput,
+    output: nothing,
+  }),
+  'plugins.reEnable': channel({ requires: 'plugins.manage', input: idInput, output: nothing }),
+  'plugins.uninstall': channel({
+    requires: 'plugins.manage',
+    input: uninstallInput,
+    output: nothing,
+  }),
+  'plugins.logs': channel({ requires: 'plugins.manage', input: logsInput, output: z.string() }),
+  'plugins.pickPackage': channel({
+    requires: 'plugins.manage',
+    input: emptyInput,
+    output: z.string().nullable(),
+  }),
+  'plugins.inspectPackage': channel({
+    requires: 'plugins.manage',
+    input: pathInput,
+    output: stagedPackageSchema,
+  }),
+  'plugins.installStaged': channel({
+    requires: 'plugins.manage',
+    input: tokenInput,
+    output: pluginSummarySchema,
+  }),
+  'plugins.discardStaged': channel({
+    requires: 'plugins.manage',
+    input: tokenInput,
+    output: nothing,
+  }),
+  'plugins.restoreDefaults': channel({
+    requires: 'plugins.manage',
+    input: emptyInput,
+    output: nothing,
+  }),
+  'plugins.getDeveloperMode': channel({
+    requires: 'plugins.manage',
+    input: emptyInput,
+    output: z.boolean(),
+  }),
+  'plugins.setDeveloperMode': channel({
+    requires: 'plugins.manage',
+    input: z.object({ enabled: z.boolean() }),
+    output: nothing,
+  }),
+  'plugins.loadUnpacked': channel({
+    requires: 'plugins.manage',
+    input: emptyInput,
+    output: pluginSummarySchema.nullable(),
+  }),
+  'plugins.reload': channel({ requires: 'plugins.manage', input: idInput, output: nothing }),
 } as const;
 
 export type IpcContract = typeof IPC_CONTRACT;
@@ -175,6 +288,9 @@ export type SourceSummary = z.infer<typeof sourceSummarySchema>;
 export type ConnectorInfo = z.infer<typeof connectorInfoSchema>;
 export type AddSourceInput = z.infer<typeof addSourceInputSchema>;
 export type SyncState = (typeof SYNC_STATES)[number];
+export type PluginSummary = z.infer<typeof pluginSummarySchema>;
+export type StagedPackageSummary = z.infer<typeof stagedPackageSchema>;
+export type PluginStatus = (typeof PLUGIN_STATUSES)[number];
 
 /**
  * Narrows an arbitrary string to a known IPC channel.

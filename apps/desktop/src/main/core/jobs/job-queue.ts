@@ -140,7 +140,8 @@ export class JobQueue {
   }
 
   /**
-   * Records a failure: requeues with backoff, or marks dead after max attempts.
+   * Records a failure: requeues with backoff (or the error's own `retryAfterMs`,
+   * used for plugin host crashes), or marks dead after max attempts.
    *
    * @param id - Job id.
    * @param error - The failure.
@@ -150,9 +151,11 @@ export class JobQueue {
     const job = this.get(id);
     if (!job) return 'dead';
     const message = error instanceof Error ? error.message : String(error);
+    const requested = (error as { retryAfterMs?: unknown } | null)?.retryAfterMs;
+    const delay = typeof requested === 'number' ? requested : retryDelayMs(job.attempts);
     return job.attempts >= job.max_attempts
       ? this.markDead(id, message)
-      : this.requeue(id, message, this.clock() + retryDelayMs(job.attempts));
+      : this.requeue(id, message, this.clock() + delay);
   }
 
   /**

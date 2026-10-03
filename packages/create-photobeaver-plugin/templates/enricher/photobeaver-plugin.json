@@ -1,0 +1,22 @@
+{
+  "id": "{{id}}",
+  "name": "{{name}}",
+  "version": "0.1.0",
+  "type": "enricher",
+  "apiVersion": "1",
+  "main": "dist/index.js",
+  "description": "{{name}} enricher for Photo Beaver",
+  "permissions": {
+    "network": [],
+    "filesystem": "none"
+  },
+  "enricher": {
+    "accepts": ["image/*"],
+    "input": "metadata",
+    "produces": ["tags"]
+  },
+  "configSchema": {
+    "type": "object",
+    "properties": {}
+  }
+}

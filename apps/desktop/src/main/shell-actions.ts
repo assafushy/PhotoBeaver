@@ -25,3 +25,20 @@ export async function openExternalUrl(url: string): Promise<void> {
   if (url.startsWith('file:')) return shell.showItemInFolder(fileURLToPath(url));
   if (url.startsWith('https:') || url.startsWith('http:')) await shell.openExternal(url);
 }
+
+/**
+ * Shows a file picker for `.pbplugin` packages.
+ *
+ * @returns The chosen file, or null when cancelled.
+ */
+export async function pickPluginPackage(): Promise<string | null> {
+  const options = {
+    properties: ['openFile' as const],
+    filters: [{ name: 'Photo Beaver plugin', extensions: ['pbplugin'] }],
+  };
+  const window = BrowserWindow.getFocusedWindow();
+  const result = window
+    ? await dialog.showOpenDialog(window, options)
+    : await dialog.showOpenDialog(options);
+  return result.canceled ? null : (result.filePaths[0] ?? null);
+}

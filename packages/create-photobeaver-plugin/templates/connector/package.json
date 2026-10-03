@@ -1,0 +1,20 @@
+{
+  "name": "{{packageName}}",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "pb-plugin build",
+    "dev": "pb-plugin dev",
+    "validate": "pb-plugin validate",
+    "test": "pb-plugin test",
+    "pack": "pb-plugin pack"
+  },
+  "devDependencies": {
+    "@photobeaver/plugin-cli": "{{cliSpec}}",
+    "@photobeaver/plugin-sdk": "{{sdkSpec}}",
+    "@types/node": "^26.6.4",
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.3"
+  }
+}
