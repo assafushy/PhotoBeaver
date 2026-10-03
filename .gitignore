@@ -1,0 +1,12 @@
+node_modules/
+dist/
+out/
+release/
+.turbo/
+coverage/
+test-results/
+playwright-report/
+*.log
+.DS_Store
+.env
+.claude/settings.local.json

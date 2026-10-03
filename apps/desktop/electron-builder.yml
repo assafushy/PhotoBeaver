@@ -1,0 +1,22 @@
+appId: app.photobeaver.desktop
+productName: Photo Beaver
+directories:
+  output: release
+  buildResources: build
+files:
+  - out/**
+  - package.json
+asarUnpack:
+  - '**/node_modules/better-sqlite3/**'
+npmRebuild: false
+mac:
+  category: public.app-category.photography
+  target: dmg
+  notarize: false
+win:
+  target: nsis
+linux:
+  target: AppImage
+  category: Graphics
+publish:
+  provider: github

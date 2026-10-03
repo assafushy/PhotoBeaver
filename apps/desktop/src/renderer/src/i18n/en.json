@@ -1,0 +1,24 @@
+{
+  "app": {
+    "name": "Photo Beaver"
+  },
+  "nav": {
+    "label": "Main navigation",
+    "library": "Library",
+    "sources": "Sources",
+    "plugins": "Plugins",
+    "activity": "Activity",
+    "settings": "Settings"
+  },
+  "library": {
+    "emptyTitle": "No photos yet",
+    "emptyBody": "Add a source to start building your library.",
+    "count_one": "{{count}} item",
+    "count_other": "{{count}} items",
+    "loading": "Loading library",
+    "error": "The library could not be loaded."
+  },
+  "placeholder": {
+    "comingSoon": "This screen arrives in a later milestone."
+  }
+}

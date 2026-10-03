@@ -1,0 +1,8 @@
+pnpm-lock.yaml
+out
+dist
+release
+packages/db/migrations
+docs/SPEC.md
+claude_docs
+.claude
