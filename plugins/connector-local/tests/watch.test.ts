@@ -27,6 +27,7 @@ describe('connector-local watch', () => {
     async () => {
       tree = makeTree(['old.jpg']);
       const batches = await watching();
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       writeFileSync(path.join(tree.root, 'new.jpg'), 'x');
       writeFileSync(path.join(tree.root, 'notes.txt'), 'x');
       unlinkSync(path.join(tree.root, 'old.jpg'));

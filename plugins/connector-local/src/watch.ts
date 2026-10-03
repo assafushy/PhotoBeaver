@@ -1,4 +1,4 @@
-import { stat } from 'node:fs/promises';
+import { realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import type { MediaItem, SyncBatch, SyncContext, Unsubscribe } from '@photobeaver/plugin-sdk';
 import { watch as watchFolder } from 'chokidar';
@@ -78,8 +78,12 @@ function createRecorder(root: string, pending: Pending, schedule: () => void) {
   };
 }
 
-function startWatcher(ctx: SyncContext<LocalConfig>, schedule: () => void, pending: Pending) {
-  const { root } = ctx.config;
+function startWatcher(
+  ctx: SyncContext<LocalConfig>,
+  root: string,
+  schedule: () => void,
+  pending: Pending,
+) {
   const watcher = watchFolder(root, {
     ignoreInitial: true,
     ignored: (file) => isHidden(file, root),
@@ -96,7 +100,8 @@ function startWatcher(ctx: SyncContext<LocalConfig>, schedule: () => void, pendi
 
 /**
  * Push-based change detection for a local folder (SPEC 9.2): file events are
- * debounced into batches. Deletions are dropped while the root folder is
+ * debounced into batches. The real (symlink-resolved) folder is watched, and
+ * paths are reported relative to it, so they map back to the configured root. Deletions are dropped while the root folder is
  * missing, so an unplugged drive does not empty the library.
  *
  * @param ctx - Sync context (config, logger).
@@ -113,7 +118,8 @@ export async function watchLocalFolder(
     () =>
       void flush().catch((error) => ctx.log.warn('Watch batch failed', { error: String(error) })),
   );
-  const watcher = startWatcher(ctx, schedule, pending);
+  const root = await realpath(ctx.config.root).catch(() => ctx.config.root);
+  const watcher = startWatcher(ctx, root, schedule, pending);
   await new Promise<void>((resolve) => watcher.once('ready', () => resolve()));
   return () => void watcher.close();
 }
