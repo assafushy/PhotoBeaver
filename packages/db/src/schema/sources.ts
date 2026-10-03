@@ -11,6 +11,7 @@ export const sources = sqliteTable('sources', {
   configJson: text('config_json').notNull(),
   secretRef: text('secret_ref'),
   syncCursor: text('sync_cursor'),
+  syncRunId: text('sync_run_id'),
   syncState: text('sync_state', {
     enum: ['idle', 'queued', 'running', 'error', 'auth_required', 'paused'],
   })

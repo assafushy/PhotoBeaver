@@ -15,6 +15,13 @@
       "when": 1791007918535,
       "tag": "0001_assets_fts",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1791036705289,
+      "tag": "0002_m1",
+      "breakpoints": true
     }
   ]
 }

@@ -20,7 +20,7 @@ export const pluginKv = sqliteTable(
   {
     pluginId: text('plugin_id').notNull(),
     key: text('key').notNull(),
-    valueJson: text('value_json'),
+    valueJson: text('value_json').notNull(),
   },
   (t) => [primaryKey({ columns: [t.pluginId, t.key] })],
 );

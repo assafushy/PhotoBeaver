@@ -1,39 +1,29 @@
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import type { PbApi } from '@photobeaver/shared';
-import { _electron as electron, expect, test, type ElectronApplication } from '@playwright/test';
-
-type RendererGlobals = typeof globalThis & { pb?: PbApi; require?: unknown };
-
-const MAIN_ENTRY = fileURLToPath(new URL('../../out/main/index.js', import.meta.url));
+import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
+import { launchApp, removeDir, tempDir, type RendererGlobals } from './app';
 
 let userDataDir: string;
 let app: ElectronApplication;
+let page: Page;
 
 test.beforeEach(async () => {
-  userDataDir = mkdtempSync(path.join(tmpdir(), 'pb-e2e-'));
-  app = await electron.launch({
-    args: [MAIN_ENTRY],
-    env: { ...process.env, PB_USER_DATA_DIR: userDataDir },
-  });
+  userDataDir = tempDir('pb-e2e-');
+  ({ app, page } = await launchApp(userDataDir));
 });
 
 test.afterEach(async () => {
   await app.close();
-  rmSync(userDataDir, { recursive: true, force: true });
+  removeDir(userDataDir);
 });
 
 test('launches, creates the library database and shows the empty library', async () => {
-  const page = await app.firstWindow();
   await expect(page.getByTestId('library-empty')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'No photos yet' })).toBeVisible();
   expect(existsSync(path.join(userDataDir, 'library', 'photobeaver.db'))).toBe(true);
 });
 
 test('exposes only the typed bridge to the renderer', async () => {
-  const page = await app.firstWindow();
   const globals = await page.evaluate(() => {
     const scope = globalThis as RendererGlobals;
     return {
@@ -42,12 +32,35 @@ test('exposes only the typed bridge to the renderer', async () => {
     };
   });
   expect(globals).toEqual({ hasPb: true, hasRequire: false });
-  const session = await page.evaluate(() => (globalThis as RendererGlobals).pb!.session.current());
+  const session = await page.evaluate(() => (globalThis as RendererGlobals).pb.session.current());
   expect(session.role).toBe('admin');
 });
 
 test('navigates between screens from the sidebar', async () => {
-  const page = await app.firstWindow();
   await page.getByRole('link', { name: 'Plugins' }).click();
   await expect(page.getByRole('heading', { name: 'Plugins' })).toBeVisible();
+});
+
+test('answers pb-media requests with validation errors or not found, never file contents', async () => {
+  const urls = [
+    'pb-media://thumb/..%2F..%2Fetc%2Fpasswd/256',
+    'pb-media://thumb/01K6P4J2Z9X8W7V6T5S4R3Q2P1/512',
+    'pb-media://thumb/01K6P4J2Z9X8W7V6T5S4R3Q2P1/256',
+    'pb-media://original/01K6P4J2Z9X8W7V6T5S4R3Q2P1',
+  ];
+  const statuses = await app.evaluate(
+    ({ net }, list) => Promise.all(list.map((u) => net.fetch(u).then((r) => r.status))),
+    urls,
+  );
+  expect(statuses).toEqual([400, 400, 404, 404]);
+});
+
+test('blocks renderer fetches to pb-media through the content security policy', async () => {
+  const blocked = await page.evaluate(() =>
+    fetch('pb-media://original/01K6P4J2Z9X8W7V6T5S4R3Q2P1').then(
+      () => false,
+      () => true,
+    ),
+  );
+  expect(blocked).toBe(true);
 });

@@ -1,13 +1,13 @@
 import { schema, type LibraryDb } from '@photobeaver/db';
 import type { IpcParsedInput, LibraryPage } from '@photobeaver/shared';
-import { and, count, desc, eq, lt, or, sql, type SQL } from 'drizzle-orm';
+import { and, count, desc, eq, isNull, lt, or, type SQL } from 'drizzle-orm';
 
 type LibraryQuery = IpcParsedInput<'library.query'>;
 type Cursor = NonNullable<LibraryQuery['cursor']>;
 
 const { assets } = schema;
-const sortTime = sql<number>`COALESCE(${assets.capturedAt}, 0)`;
-const visible = eq(assets.hidden, 0);
+const sortTime = schema.librarySortExpression;
+const visible = and(eq(assets.hidden, 0), isNull(assets.missingSince));
 
 function afterCursor(cursor: Cursor): SQL | undefined {
   return or(
@@ -25,6 +25,7 @@ function fetchRows(db: LibraryDb, query: LibraryQuery) {
       capturedAt: assets.capturedAt,
       width: assets.width,
       height: assets.height,
+      thumbState: assets.thumbState,
       sortTime,
     })
     .from(assets)

@@ -1,6 +1,8 @@
 packages:
   - apps/*
   - packages/*
+  - plugins/*
 allowBuilds:
   electron-winstaller: false
   esbuild: true
+  ffmpeg-static: true
