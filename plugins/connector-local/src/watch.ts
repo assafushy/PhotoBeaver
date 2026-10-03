@@ -8,7 +8,7 @@ import { scanFile } from './scan';
 export const WATCH_DEBOUNCE_MS = 500;
 export const WATCH_CURSOR = 'watch';
 
-interface Pending {
+export interface Pending {
   changed: Set<string>;
   removed: Set<string>;
 }
@@ -27,7 +27,15 @@ async function rootExists(root: string): Promise<boolean> {
   return Boolean(info?.isDirectory());
 }
 
-async function buildBatch(config: LocalConfig, pending: Pending): Promise<SyncBatch | null> {
+/**
+ * Turns pending file events into a batch. Deletions are dropped while the root
+ * folder is missing, so an unplugged drive does not empty the library.
+ *
+ * @param config - Source config.
+ * @param pending - Root-relative paths changed and removed.
+ * @returns The batch, or null when there is nothing to report.
+ */
+export async function buildBatch(config: LocalConfig, pending: Pending): Promise<SyncBatch | null> {
   const scanned = await Promise.all([...pending.changed].map((rel) => scanFile(config, rel)));
   const upserts: MediaItem[] = scanned.flatMap((file) => (file ? [file.item] : []));
   const online = await rootExists(config.root);
