@@ -1,22 +1,53 @@
 import type { LibraryDb } from '@photobeaver/db';
 import type { AppInfo } from '@photobeaver/shared';
+import { getAssetDetail, instanceExternalUrl } from '../../core/assets/asset-service';
+import type { SourceService } from '../../core/sources/source-service';
 import { queryLibraryPage } from '../../library/library-service';
 import type { IpcRegistry } from '../registry';
 
 export interface HandlerDeps {
   db: LibraryDb;
+  sources: SourceService;
   appInfo: () => AppInfo;
+  pickDirectory: () => Promise<string | null>;
+  openExternalUrl: (url: string) => Promise<void>;
+}
+
+function registerLibraryHandlers(registry: IpcRegistry, deps: HandlerDeps): void {
+  registry.handle('app.info', () => deps.appInfo());
+  registry.handle('session.current', (_input, ctx) => ctx.user);
+  registry.handle('library.query', (input) => queryLibraryPage(deps.db, input));
+  registry.handle('assets.get', ({ id }) => getAssetDetail(deps.db, id));
+  registry.handle('assets.openInSource', async ({ id }) => {
+    const url = instanceExternalUrl(deps.db, id);
+    if (url) await deps.openExternalUrl(url);
+    return null;
+  });
+}
+
+function registerSourceHandlers(registry: IpcRegistry, deps: HandlerDeps): void {
+  const { sources } = deps;
+  registry.handle('sources.list', () => sources.list());
+  registry.handle('sources.connectors', () => sources.connectors());
+  registry.handle('sources.add', (input, ctx) => sources.add(input, ctx.user.id));
+  registry.handle(
+    'sources.remove',
+    async ({ id }, ctx) => (await sources.remove(id, ctx.user.id), null),
+  );
+  registry.handle('sources.pickDirectory', () => deps.pickDirectory());
+  registry.handle('sources.syncNow', ({ id }) => (sources.syncNow(id), null));
+  registry.handle('sources.pause', ({ id }) => (sources.pause(id), null));
+  registry.handle('sources.resume', ({ id }) => (sources.resume(id), null));
 }
 
 /**
- * Registers every M0 IPC handler and verifies the contract is fully covered.
+ * Registers every IPC handler and verifies the contract is fully covered.
  *
  * @param registry - The permission-checked registry.
  * @param deps - Services the handlers depend on.
  */
 export function registerHandlers(registry: IpcRegistry, deps: HandlerDeps): void {
-  registry.handle('app.info', () => deps.appInfo());
-  registry.handle('session.current', (_input, ctx) => ctx.user);
-  registry.handle('library.query', (input) => queryLibraryPage(deps.db, input));
+  registerLibraryHandlers(registry, deps);
+  registerSourceHandlers(registry, deps);
   registry.assertComplete();
 }

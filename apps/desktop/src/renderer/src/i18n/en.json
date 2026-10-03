@@ -2,6 +2,10 @@
   "app": {
     "name": "Photo Beaver"
   },
+  "common": {
+    "back": "Back",
+    "cancel": "Cancel"
+  },
   "nav": {
     "label": "Main navigation",
     "library": "Library",
@@ -13,10 +17,67 @@
   "library": {
     "emptyTitle": "No photos yet",
     "emptyBody": "Add a source to start building your library.",
+    "addSource": "Add a source",
     "count_one": "{{count}} item",
     "count_other": "{{count}} items",
     "loading": "Loading library",
-    "error": "The library could not be loaded."
+    "loadingMore": "loading",
+    "error": "The library could not be loaded.",
+    "gridLabel": "Photos and videos",
+    "timeline": "Timeline",
+    "undated": "Unknown date",
+    "video": "Video",
+    "openPhoto": "Open photo",
+    "openVideo": "Open video",
+    "noPreview": "No preview"
+  },
+  "viewer": {
+    "label": "Viewer",
+    "close": "Close",
+    "info": "Info",
+    "previous": "Previous",
+    "next": "Next",
+    "photo": "Photo",
+    "video": "Video",
+    "noPreview": "A preview is not available for this file.",
+    "date": "Date",
+    "dateSource": {
+      "exif": "from the camera",
+      "source": "from the source",
+      "filename": "from the file name",
+      "mtime": "from the file date"
+    },
+    "dimensions": "Dimensions",
+    "duration": "Duration",
+    "type": "Type",
+    "locations": "Locations",
+    "openInSource": "Open in source",
+    "missing": "No longer in this source"
+  },
+  "sources": {
+    "addSource": "Add source",
+    "addTitle": "Add a source",
+    "addDescription": "Choose where your photos and videos live.",
+    "add": "Add",
+    "browse": "Browse",
+    "empty": "No sources yet. Add a folder to start your library.",
+    "syncNow": "Sync now",
+    "pause": "Pause",
+    "resume": "Resume",
+    "remove": "Remove",
+    "removeTitle": "Remove {{name}}?",
+    "removeBody": "Its photos and videos will be removed from the library. Files in the source are not touched.",
+    "scanned_one": "{{count}} file scanned",
+    "scanned_other": "{{count}} files scanned",
+    "lastSync": "last synced {{when}}",
+    "state": {
+      "idle": "Up to date",
+      "queued": "Waiting to sync",
+      "running": "Syncing",
+      "error": "Sync keeps failing",
+      "auth_required": "Needs reconnecting",
+      "paused": "Paused"
+    }
   },
   "placeholder": {
     "comingSoon": "This screen arrives in a later milestone."

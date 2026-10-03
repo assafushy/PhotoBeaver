@@ -4,7 +4,11 @@ import react from '@vitejs/plugin-react';
 import { defineConfig } from 'electron-vite';
 import { copyMigrations } from './build/copy-migrations';
 
-const WORKSPACE_PACKAGES = ['@photobeaver/shared', '@photobeaver/db'];
+import packageJson from './package.json' with { type: 'json' };
+
+const WORKSPACE_PACKAGES = Object.keys(packageJson.devDependencies).filter((name) =>
+  name.startsWith('@photobeaver/'),
+);
 
 export default defineConfig({
   main: {

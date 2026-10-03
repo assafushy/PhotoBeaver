@@ -1,25 +1,37 @@
 import { app, BrowserWindow, dialog } from 'electron';
-import { startCore, type Core } from './bootstrap';
+import type { App } from './bootstrap';
 import { applyUserDataOverride } from './paths';
+import { registerMediaScheme } from './protocol/scheme';
 import { createMainWindow } from './window';
 
-let core: Core | null = null;
+let running: App | null = null;
+let quitting = false;
 
 function reportFatal(error: unknown): void {
   const message = error instanceof Error ? (error.stack ?? error.message) : String(error);
   console.error('Photo Beaver could not start:', message);
-  core?.logger.fatal({ err: error }, 'Startup failed');
+  running?.logger.fatal({ err: error }, 'Startup failed');
   dialog.showErrorBox('Photo Beaver could not start', message);
   app.exit(1);
 }
 
 function openWindow(): void {
-  createMainWindow((error) => core?.logger.error({ err: error }, 'Renderer failed to load'));
+  createMainWindow((error) => running?.logger.error({ err: error }, 'Renderer failed to load'));
 }
 
 async function onReady(): Promise<void> {
-  core = await startCore();
+  const { startApp } = await import('./bootstrap');
+  running = await startApp();
   openWindow();
+}
+
+async function shutdownThenQuit(): Promise<void> {
+  try {
+    await running?.shutdown();
+  } finally {
+    running = null;
+    app.quit();
+  }
 }
 
 function registerAppEvents(): void {
@@ -28,12 +40,18 @@ function registerAppEvents(): void {
     if (process.platform !== 'darwin') app.quit();
   });
   app.on('activate', () => {
-    if (core && BrowserWindow.getAllWindows().length === 0) openWindow();
+    if (running && BrowserWindow.getAllWindows().length === 0) openWindow();
   });
-  app.on('will-quit', () => core?.shutdown());
+  app.on('before-quit', (event) => {
+    if (!running || quitting) return;
+    quitting = true;
+    event.preventDefault();
+    void shutdownThenQuit();
+  });
 }
 
 applyUserDataOverride();
+registerMediaScheme();
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {

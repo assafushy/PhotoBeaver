@@ -18,24 +18,37 @@ function navClass({ isActive }: { isActive: boolean }): string {
   return `${base} ${state}`;
 }
 
-export function Shell() {
+function NavList() {
   const { t } = useTranslation();
   return (
+    <nav aria-label={t('nav.label')}>
+      <ul className="space-y-1">
+        {NAV_ITEMS.map((item) => (
+          <li key={item.to}>
+            <NavLink to={item.to} className={navClass}>
+              {t(item.key)}
+            </NavLink>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+}
+
+function Sidebar() {
+  const { t } = useTranslation();
+  return (
+    <aside className="w-56 shrink-0 border-r border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-900">
+      <div className="mb-6 px-3 text-lg font-semibold">{t('app.name')}</div>
+      <NavList />
+    </aside>
+  );
+}
+
+export function Shell() {
+  return (
     <div className="flex h-screen bg-white text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
-      <aside className="w-56 shrink-0 border-r border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-900">
-        <div className="mb-6 px-3 text-lg font-semibold">{t('app.name')}</div>
-        <nav aria-label={t('nav.label')}>
-          <ul className="space-y-1">
-            {NAV_ITEMS.map((item) => (
-              <li key={item.to}>
-                <NavLink to={item.to} className={navClass}>
-                  {t(item.key)}
-                </NavLink>
-              </li>
-            ))}
-          </ul>
-        </nav>
-      </aside>
+      <Sidebar />
       <main className="flex min-w-0 flex-1 flex-col overflow-auto">
         <Outlet />
       </main>

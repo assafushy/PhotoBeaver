@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { PERMISSIONS, type Permission } from './permissions';
 import { ROLES } from './roles';
+import type { ConfigSchema } from './config-schema';
 
 const emptyInput = z.undefined();
 
@@ -15,6 +16,7 @@ const assetSummarySchema = z.object({
   capturedAt: z.number().int().nullable(),
   width: z.number().int().nullable(),
   height: z.number().int().nullable(),
+  thumbState: z.enum(['pending', 'ready', 'failed']).nullable(),
 });
 
 export const sessionUserSchema = z.object({
@@ -42,6 +44,71 @@ export const libraryPageSchema = z.object({
   total: z.number().int(),
 });
 
+const idInput = z.object({ id: z.string().min(1).max(64) });
+const nothing = z.null();
+
+export const SYNC_STATES = [
+  'idle',
+  'queued',
+  'running',
+  'error',
+  'auth_required',
+  'paused',
+] as const;
+
+export const sourceSummarySchema = z.object({
+  id: z.string(),
+  pluginId: z.string(),
+  connectorName: z.string(),
+  displayName: z.string(),
+  location: z.string().nullable(),
+  syncState: z.enum(SYNC_STATES),
+  itemCount: z.number().int(),
+  lastSyncFinishedAt: z.number().nullable(),
+  lastError: z.string().nullable(),
+  nextRunAt: z.number().nullable(),
+  intervalSec: z.number().int(),
+});
+
+export const connectorInfoSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string(),
+  configSchema: z.custom<ConfigSchema>((value) => typeof value === 'object' && value !== null),
+});
+
+export const addSourceInputSchema = z.object({
+  pluginId: z.string().min(1),
+  config: z.record(z.string(), z.unknown()),
+});
+
+export const assetInstanceSchema = z.object({
+  id: z.string(),
+  sourceId: z.string(),
+  sourceName: z.string(),
+  filename: z.string().nullable(),
+  path: z.string().nullable(),
+  sizeBytes: z.number().nullable(),
+  canOpen: z.boolean(),
+  missing: z.boolean(),
+});
+
+export const assetDetailSchema = z.object({
+  id: z.string(),
+  mediaType: z.enum(['image', 'video']),
+  mime: z.string().nullable(),
+  width: z.number().int().nullable(),
+  height: z.number().int().nullable(),
+  durationMs: z.number().int().nullable(),
+  capturedAt: z.number().int().nullable(),
+  capturedAtSource: z.enum(['exif', 'source', 'filename', 'mtime']).nullable(),
+  lat: z.number().nullable(),
+  lon: z.number().nullable(),
+  favorite: z.boolean(),
+  thumbState: z.enum(['pending', 'ready', 'failed']).nullable(),
+  instances: z.array(assetInstanceSchema),
+});
+
 interface ChannelContract<I extends z.ZodType, O extends z.ZodType> {
   requires: Permission;
   input: I;
@@ -64,6 +131,32 @@ export const IPC_CONTRACT = {
     input: libraryQueryInputSchema,
     output: libraryPageSchema,
   }),
+  'assets.get': channel({ requires: 'assets.view', input: idInput, output: assetDetailSchema }),
+  'assets.openInSource': channel({ requires: 'assets.view', input: idInput, output: nothing }),
+  'sources.list': channel({
+    requires: 'assets.view',
+    input: emptyInput,
+    output: z.array(sourceSummarySchema),
+  }),
+  'sources.connectors': channel({
+    requires: 'sources.manage',
+    input: emptyInput,
+    output: z.array(connectorInfoSchema),
+  }),
+  'sources.add': channel({
+    requires: 'sources.manage',
+    input: addSourceInputSchema,
+    output: sourceSummarySchema,
+  }),
+  'sources.remove': channel({ requires: 'sources.manage', input: idInput, output: nothing }),
+  'sources.pickDirectory': channel({
+    requires: 'sources.manage',
+    input: emptyInput,
+    output: z.string().nullable(),
+  }),
+  'sources.syncNow': channel({ requires: 'sources.sync', input: idInput, output: nothing }),
+  'sources.pause': channel({ requires: 'sources.sync', input: idInput, output: nothing }),
+  'sources.resume': channel({ requires: 'sources.sync', input: idInput, output: nothing }),
 } as const;
 
 export type IpcContract = typeof IPC_CONTRACT;
@@ -76,6 +169,12 @@ export type AppInfo = IpcOutput<'app.info'>;
 export type SessionUser = IpcOutput<'session.current'>;
 export type LibraryQueryInput = IpcInput<'library.query'>;
 export type LibraryPage = IpcOutput<'library.query'>;
+export type AssetSummary = LibraryPage['items'][number];
+export type AssetDetail = IpcOutput<'assets.get'>;
+export type SourceSummary = z.infer<typeof sourceSummarySchema>;
+export type ConnectorInfo = z.infer<typeof connectorInfoSchema>;
+export type AddSourceInput = z.infer<typeof addSourceInputSchema>;
+export type SyncState = (typeof SYNC_STATES)[number];
 
 /**
  * Narrows an arbitrary string to a known IPC channel.

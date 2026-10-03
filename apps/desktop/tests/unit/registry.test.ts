@@ -60,6 +60,6 @@ describe('IpcRegistry', () => {
   it('reports channels that have no handler', () => {
     const { registry } = setup(userWithRole('admin'));
     registry.handle('session.current', (_i, ctx) => ctx.user);
-    expect(() => registry.assertComplete()).toThrow(/app.info, library.query/);
+    expect(() => registry.assertComplete()).toThrow(/app\.info, library\.query, assets\.get/);
   });
 });

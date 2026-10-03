@@ -12,12 +12,12 @@ export interface AppPaths {
 const USER_DATA_ENV = 'PB_USER_DATA_DIR';
 
 /**
- * Lets tests and developers point the app at a throwaway userData folder.
- * Must run before the `ready` event.
+ * Lets tests and developers point an unpackaged build at a throwaway userData
+ * folder. Ignored in packaged builds. Must run before the `ready` event.
  */
 export function applyUserDataOverride(): void {
   const override = process.env[USER_DATA_ENV];
-  if (override) app.setPath('userData', path.resolve(override));
+  if (override && !app.isPackaged) app.setPath('userData', path.resolve(override));
 }
 
 /**
@@ -33,4 +33,15 @@ export function resolveAppPaths(): AppPaths {
     logsDir: path.join(userDataDir, 'logs'),
     migrationsFolder: fileURLToPath(new URL('./migrations', import.meta.url)),
   };
+}
+
+/**
+ * Dev and test hook that slows sync down between batches, so a crash mid-sync can
+ * be exercised. Ignored in packaged builds.
+ *
+ * @returns Delay in milliseconds, or undefined.
+ */
+export function devSyncBatchDelayMs(): number | undefined {
+  const value = Number(process.env.PB_SYNC_BATCH_DELAY_MS);
+  return !app.isPackaged && value > 0 ? value : undefined;
 }

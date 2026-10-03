@@ -1,4 +1,11 @@
+import { sql } from 'drizzle-orm';
 import { index, integer, primaryKey, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+
+export const UNDATED_SORT_VALUE = Number.MIN_SAFE_INTEGER;
+
+export const librarySortExpression = sql<number>`${sql.raw(
+  `COALESCE("assets"."captured_at", ${UNDATED_SORT_VALUE})`,
+)}`;
 
 export const assets = sqliteTable(
   'assets',
@@ -17,7 +24,8 @@ export const assets = sqliteTable(
     lon: real('lon'),
     favorite: integer('favorite').default(0),
     hidden: integer('hidden').default(0),
-    thumbState: text('thumb_state').default('pending'),
+    thumbState: text('thumb_state', { enum: ['pending', 'ready', 'failed'] }).default('pending'),
+    missingSince: integer('missing_since'),
     createdAt: integer('created_at'),
     updatedAt: integer('updated_at'),
   },
@@ -76,6 +84,7 @@ export const assetMerges = sqliteTable('asset_merges', {
   mergedAssetId: text('merged_asset_id').notNull(),
   movedInstanceIdsJson: text('moved_instance_ids_json').notNull(),
   mergedBy: text('merged_by').notNull(),
+  snapshotJson: text('snapshot_json'),
   createdAt: integer('created_at'),
   undoneAt: integer('undone_at'),
 });

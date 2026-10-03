@@ -1,5 +1,14 @@
-import type { IpcChannel, IpcInput, IpcOutput, IpcResult, PbApi } from '@photobeaver/shared';
-import { contextBridge, ipcRenderer } from 'electron';
+import type {
+  IpcChannel,
+  IpcInput,
+  IpcOutput,
+  IpcResult,
+  PbApi,
+  PbEventName,
+  PbEvents,
+} from '@photobeaver/shared';
+import { isPbEventName } from '@photobeaver/shared/event-names';
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 
 class PbIpcError extends Error {
   constructor(
@@ -20,10 +29,35 @@ async function invoke<C extends IpcChannel>(
   return result.value;
 }
 
+function on<K extends PbEventName>(name: K, listener: (payload: PbEvents[K]) => void): () => void {
+  if (!isPbEventName(name)) throw new Error(`Unknown event: ${name}`);
+  const channel = `pb:event:${name}`;
+  const wrapped = (_event: IpcRendererEvent, payload: PbEvents[K]) => listener(payload);
+  ipcRenderer.on(channel, wrapped);
+  return () => void ipcRenderer.removeListener(channel, wrapped);
+}
+
+const byId =
+  <C extends IpcChannel>(channel: C) =>
+  (id: string) =>
+    invoke(channel, { id } as IpcInput<C>);
+
 const api: PbApi = {
   app: { info: () => invoke('app.info') },
   session: { current: () => invoke('session.current') },
   library: { query: (input) => invoke('library.query', input) },
+  assets: { get: byId('assets.get'), openInSource: byId('assets.openInSource') },
+  sources: {
+    list: () => invoke('sources.list'),
+    connectors: () => invoke('sources.connectors'),
+    add: (input) => invoke('sources.add', input),
+    remove: byId('sources.remove'),
+    pickDirectory: () => invoke('sources.pickDirectory'),
+    syncNow: byId('sources.syncNow'),
+    pause: byId('sources.pause'),
+    resume: byId('sources.resume'),
+  },
+  events: { on },
 };
 
 contextBridge.exposeInMainWorld('pb', api);
