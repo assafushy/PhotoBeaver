@@ -1,7 +1,7 @@
-import { existsSync, rmSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
-import { launchApp, tempDir, type RendererGlobals } from './app';
+import { launchApp, removeDir, tempDir, type RendererGlobals } from './app';
 
 let userDataDir: string;
 let app: ElectronApplication;
@@ -14,7 +14,7 @@ test.beforeEach(async () => {
 
 test.afterEach(async () => {
   await app.close();
-  rmSync(userDataDir, { recursive: true, force: true });
+  removeDir(userDataDir);
 });
 
 test('launches, creates the library database and shows the empty library', async () => {

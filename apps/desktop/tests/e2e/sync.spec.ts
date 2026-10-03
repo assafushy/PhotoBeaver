@@ -1,9 +1,9 @@
-import { rmSync, unlinkSync } from 'node:fs';
+import { unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test } from '@playwright/test';
 import Database from 'better-sqlite3';
 import { writeImageSet } from '../fixtures/generate';
-import { launchApp, libraryCount, tempDir, type RendererGlobals } from './app';
+import { killApp, launchApp, libraryCount, removeDir, tempDir, type RendererGlobals } from './app';
 
 const COUNT = 1500;
 const LOCAL = 'com.photobeaver.connector-local';
@@ -32,8 +32,8 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(() => {
-  rmSync(root, { recursive: true, force: true });
-  rmSync(userDataDir, { recursive: true, force: true });
+  removeDir(root);
+  removeDir(userDataDir);
 });
 
 test('fills the grid progressively and resumes after the app is killed mid-sync', async () => {
@@ -51,7 +51,7 @@ test('fills the grid progressively and resumes after the app is killed mid-sync'
   const partial = await libraryCount(first.page);
   expect(partial).toBeGreaterThan(0);
   expect(partial).toBeLessThan(COUNT);
-  first.app.process().kill('SIGKILL');
+  await killApp(first.app);
 
   const second = await launchApp(userDataDir);
   await expect.poll(() => libraryCount(second.page), { timeout: 60_000 }).toBe(COUNT);
