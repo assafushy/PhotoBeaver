@@ -138,6 +138,12 @@ export async function startApp(): Promise<App> {
   registerMedia(services);
   core.start();
   await developerMode.start();
-  const shutdown = async () => (await developerMode.stop(), await core.stop(), library.close());
+  const shutdown = async () => {
+    logger.info({}, 'Shutting down');
+    await developerMode.stop();
+    await core.stop();
+    library.close();
+    logger.info({}, 'Shutdown complete');
+  };
   return { library, core, logger, shutdown };
 }
