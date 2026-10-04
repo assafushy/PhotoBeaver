@@ -47,6 +47,8 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 export class HostHandle {
   private running: Running | null = null;
   private starting: Promise<Connection> | null = null;
+  private launching: { host: LaunchedHost; peer: RpcPeer } | null = null;
+  private stops = 0;
   private stopping = false;
   private restartNotBefore = 0;
   private inFlight = 0;
@@ -118,8 +120,14 @@ export class HostHandle {
     return this.starting;
   }
 
-  /** Stops the host gracefully (disable, uninstall, idle, quit). */
+  /**
+   * Stops the host gracefully (disable, uninstall, idle, quit). A host that is
+   * still starting is given a moment to finish, then killed, so quitting never
+   * leaves a plugin process behind.
+   */
   async stop(): Promise<void> {
+    this.stops++;
+    await this.settleStart();
     const running = this.running;
     if (!running) return;
     this.stopping = true;
@@ -150,16 +158,37 @@ export class HostHandle {
     return true;
   }
 
+  private async settleStart(): Promise<void> {
+    if (!this.starting) return;
+    const starting = this.starting.catch(() => undefined);
+    await Promise.race([starting, sleep(STOP_GRACE_MS)]);
+    if (this.running || !this.launching) return;
+    this.launching.peer.close();
+    this.launching.host.kill();
+    this.launching = null;
+  }
+
+  private assertNotStopped(since: number, cleanup: () => void = () => undefined): void {
+    if (this.stops === since) return;
+    cleanup();
+    throw new PluginUnavailableError(`${this.deps.pluginId} was stopped while starting`);
+  }
+
   private async start(): Promise<Connection> {
+    const since = this.stops;
     const wait = this.restartNotBefore - this.now();
     if (wait > 0) await sleep(wait);
+    this.assertNotStopped(since);
     this.stopping = false;
     const host = this.deps.launcher.launch(this.deps.launchOptions);
     const peer = new RpcPeer(host.port);
+    this.launching = { host, peer };
     this.deps.registerCoreHandlers(peer);
     host.onExit((code) => this.onExit(host, code));
     peer.onClose(() => this.onPeerClosed(host));
     const capabilities = await this.initialize(host, peer);
+    this.launching = null;
+    this.assertNotStopped(since, () => (peer.close(), host.kill()));
     this.running = { host, connection: { peer, capabilities } };
     this.deps.onStarted();
     return this.running.connection;
