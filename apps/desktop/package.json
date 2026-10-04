@@ -20,6 +20,9 @@
   "devDependencies": {
     "@photobeaver/connector-local": "workspace:*",
     "@photobeaver/db": "workspace:*",
+    "@photobeaver/enricher-dedup": "workspace:*",
+    "@photobeaver/enricher-geocode": "workspace:*",
+    "@photobeaver/enricher-metadata": "workspace:*",
     "@photobeaver/plugin-sdk": "workspace:*",
     "@photobeaver/shared": "workspace:*",
     "@playwright/test": "^1.63.0",

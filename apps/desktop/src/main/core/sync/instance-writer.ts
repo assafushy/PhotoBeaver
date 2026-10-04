@@ -3,6 +3,7 @@ import type { MediaItem } from '@photobeaver/plugin-sdk';
 import { and, eq, inArray, isNull, ne, or } from 'drizzle-orm';
 import { ulid } from 'ulid';
 import { captureDateFromItem, pickCapturedAt, type CapturedAt } from '../assets/capture-date';
+import { pickLocation, type Located } from '../assets/location';
 
 const { assets, instances } = schema;
 
@@ -53,6 +54,23 @@ function storedCapturedAt(asset: AssetRow): CapturedAt | null {
   return { value: asset.capturedAt, source: asset.capturedAtSource };
 }
 
+function sourceLocation(item: MediaItem): Located | null {
+  return item.location ? { ...item.location, source: 'source' } : null;
+}
+
+function locationFields(location: Located | null) {
+  return {
+    lat: location?.lat ?? null,
+    lon: location?.lon ?? null,
+    locationSource: location?.source ?? null,
+  };
+}
+
+function storedLocation(asset: AssetRow): Located | null {
+  if (asset.lat === null || asset.lon === null || !asset.locationSource) return null;
+  return { lat: asset.lat, lon: asset.lon, source: asset.locationSource };
+}
+
 function assetFields(item: MediaItem, captured: CapturedAt | null, now: number) {
   return {
     mediaType: item.kind,
@@ -62,8 +80,7 @@ function assetFields(item: MediaItem, captured: CapturedAt | null, now: number) 
     durationMs: item.durationMs === undefined ? null : Math.round(item.durationMs),
     capturedAt: captured?.value ?? null,
     capturedAtSource: captured?.source ?? null,
-    lat: item.location?.lat ?? null,
-    lon: item.location?.lon ?? null,
+    ...locationFields(sourceLocation(item)),
     thumbState: 'pending' as const,
     missingSince: null,
     updatedAt: now,
@@ -98,8 +115,7 @@ function updateChangedAsset(asset: AssetRow, item: MediaItem, now: number, db: L
       ...fields,
       width: fields.width ?? asset.width,
       height: fields.height ?? asset.height,
-      lat: fields.lat ?? asset.lat,
-      lon: fields.lon ?? asset.lon,
+      ...locationFields(pickLocation(storedLocation(asset), sourceLocation(item))),
     })
     .where(eq(assets.id, asset.id))
     .run();

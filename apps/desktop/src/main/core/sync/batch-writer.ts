@@ -2,6 +2,7 @@ import { schema, type LibraryDb } from '@photobeaver/db';
 import type { KnownItemState } from '@photobeaver/plugin-sdk';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { refreshMissing } from '../assets/missing';
+import { refreshSearchText } from '../enrich/search-text';
 import type { JobQueue } from '../jobs/job-queue';
 import { PRIORITY } from '../jobs/job-types';
 import { linkAssetAlbums, upsertAlbums } from './album-writer';
@@ -16,6 +17,7 @@ export interface BatchResult {
   changed: number;
   tombstoned: number;
   touchedAssetIds: string[];
+  contentChangedAssetIds: string[];
 }
 
 /**
@@ -34,10 +36,12 @@ export class BatchWriter {
   constructor(
     private readonly db: LibraryDb,
     private readonly queue: JobQueue,
+    private readonly onContentChanged: (assetIds: string[]) => void = () => undefined,
   ) {}
 
   /**
-   * Applies one validated batch and its cursor atomically. Watch batches pass
+   * Applies one validated batch and its cursor atomically, then reports new and
+   * changed assets for enrichment planning. Watch batches pass
    * `saveCursor: false` so they never disturb a resumable full scan.
    *
    * @param batch - The validated batch.
@@ -50,18 +54,21 @@ export class BatchWriter {
     ctx: Omit<WriteContext, 'db'>,
     options: { saveCursor?: boolean } = {},
   ): BatchResult {
-    return this.db.transaction((tx) => {
+    const result = this.db.transaction((tx) => {
       const write = { ...ctx, db: tx as unknown as LibraryDb };
       upsertAlbums(batch.albums ?? [], write);
-      const result = this.applyItems(batch, write);
+      const applied = this.applyItems(batch, write);
       if (options.saveCursor !== false) {
         tx.update(sources)
           .set({ syncCursor: batch.cursor })
           .where(eq(sources.id, ctx.sourceId))
           .run();
       }
-      return result;
+      return applied;
     });
+    if (result.contentChangedAssetIds.length > 0)
+      this.onContentChanged(result.contentChangedAssetIds);
+    return result;
   }
 
   /**
@@ -128,12 +135,18 @@ export class BatchWriter {
   }
 
   private applyItems(batch: ValidatedBatch, ctx: WriteContext): BatchResult {
-    const result: BatchResult = { created: 0, changed: 0, tombstoned: 0, touchedAssetIds: [] };
+    const result: BatchResult = {
+      created: 0,
+      changed: 0,
+      tombstoned: 0,
+      touchedAssetIds: [],
+      contentChangedAssetIds: [],
+    };
     for (const item of batch.upserts) {
       const { assetId, outcome } = upsertItem(item, ctx);
       if (item.albums?.length) linkAssetAlbums(assetId, item.albums, ctx);
       if (outcome === 'created' || outcome === 'changed')
-        this.queueThumbnail(assetId, result, outcome);
+        this.contentChanged(assetId, result, outcome, ctx);
       if (outcome !== 'unchanged') result.touchedAssetIds.push(assetId);
     }
     const tombstoned = tombstoneItems(batch.deletes ?? [], ctx);
@@ -141,6 +154,17 @@ export class BatchWriter {
     result.touchedAssetIds.push(...tombstoned);
     refreshMissing(ctx.db, [...new Set(result.touchedAssetIds)], ctx.now);
     return result;
+  }
+
+  private contentChanged(
+    assetId: string,
+    result: BatchResult,
+    outcome: 'created' | 'changed',
+    ctx: WriteContext,
+  ): void {
+    this.queueThumbnail(assetId, result, outcome);
+    result.contentChangedAssetIds.push(assetId);
+    refreshSearchText(ctx.db, assetId);
   }
 
   private queueThumbnail(

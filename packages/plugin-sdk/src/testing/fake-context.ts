@@ -53,18 +53,18 @@ const DEFAULT_TOKENS: OAuthTokens = {
   tokenType: 'Bearer',
 };
 
-function emptyRecorder(): FakeRecorder {
+export function emptyRecorder(): FakeRecorder {
   return { logs: [], progress: [], notifications: [], storage: new Map(), secret: undefined };
 }
 
-function recordingLogger(lines: LogLine[]): Logger {
+export function recordingLogger(lines: LogLine[]): Logger {
   const write = (level: LogLevel) => (msg: string, data?: object) => {
     lines.push(data === undefined ? { level, msg } : { level, msg, data });
   };
   return { debug: write('debug'), info: write('info'), warn: write('warn'), error: write('error') };
 }
 
-function memoryStorage(store: Map<string, unknown>): PluginStorage {
+export function memoryStorage(store: Map<string, unknown>): PluginStorage {
   return {
     get: async <T>(key: string) => store.get(key) as T | undefined,
     set: async (key, value) => void store.set(key, value),

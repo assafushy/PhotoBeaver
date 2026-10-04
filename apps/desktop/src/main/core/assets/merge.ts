@@ -1,6 +1,7 @@
 import { schema, type LibraryDb } from '@photobeaver/db';
 import { and, eq, isNotNull, or } from 'drizzle-orm';
 import { ulid } from 'ulid';
+import { refreshSearchText, removeSearchText } from '../enrich/search-text';
 import { refreshMissing } from './missing';
 import {
   combinedFields,
@@ -34,7 +35,9 @@ function loadAsset(db: LibraryDb, id: string): AssetRow {
   return row;
 }
 
-function orderBySurvival(a: AssetRow, b: AssetRow): [AssetRow, AssetRow] {
+function orderBySurvival(a: AssetRow, b: AssetRow, survivorId?: string): [AssetRow, AssetRow] {
+  if (survivorId === a.id) return [a, b];
+  if (survivorId === b.id) return [b, a];
   const aFirst =
     (a.createdAt ?? 0) < (b.createdAt ?? 0) ||
     ((a.createdAt ?? 0) === (b.createdAt ?? 0) && a.id < b.id);
@@ -132,7 +135,7 @@ function recordMerge(db: LibraryDb, record: MergeRecord, now: number): string {
 
 /**
  * Merges two assets that are the same media (SPEC 4.3 step 4), in one transaction.
- * The older asset survives; instances, albums, tags, faces and user flags move to
+ * The older asset survives unless the caller picks one (a user merge); instances, albums, tags, faces and user flags move to
  * it, its enrichments win and gaps are filled from the merged asset.
  *
  * @param db - Library database.
@@ -148,17 +151,24 @@ export function mergeAssets(
   assetB: string,
   mergedBy: string,
   now: number,
+  options: { survivorId?: string } = {},
 ): MergeResult {
   if (assetA === assetB) throw new Error('Cannot merge an asset with itself');
   return db.transaction((txRaw) => {
     const tx = txRaw as unknown as LibraryDb;
-    const [survivor, merged] = orderBySurvival(loadAsset(tx, assetA), loadAsset(tx, assetB));
+    const [survivor, merged] = orderBySurvival(
+      loadAsset(tx, assetA),
+      loadAsset(tx, assetB),
+      options.survivorId,
+    );
     const snapshot = buildSnapshot(tx, survivor, merged);
     const movedIds = moveInstances(tx, merged.id, survivor.id);
     const record: MergeRecord = { survivor, merged, snapshot, movedIds, mergedBy };
     applyToSurvivor(tx, record, now);
     const mergeId = recordMerge(tx, record, now);
     refreshMissing(tx, [survivor.id], now);
+    removeSearchText(tx, merged.id);
+    refreshSearchText(tx, survivor.id);
     return { mergeId, survivingAssetId: survivor.id, mergedAssetId: merged.id };
   });
 }

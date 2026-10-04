@@ -1,0 +1,32 @@
+{
+  "name": "@photobeaver/enricher-dedup",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Find the same photo or video across sources, and suggest look-alike copies",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./manifest": "./photobeaver-plugin.json"
+  },
+  "scripts": {
+    "build": "pb-plugin build",
+    "pack": "pb-plugin pack",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@photobeaver/plugin-sdk": "workspace:*",
+    "pngjs": "^7.0.0"
+  },
+  "devDependencies": {
+    "@photobeaver/plugin-cli": "workspace:*",
+    "@photobeaver/shared": "workspace:*",
+    "@types/node": "^26.6.4",
+    "@types/pngjs": "^6.0.5",
+    "sharp": "^0.35.5",
+    "vitest": "^5.0.3"
+  }
+}

@@ -45,7 +45,9 @@
       "exif": "from the camera",
       "source": "from the source",
       "filename": "from the file name",
-      "mtime": "from the file date"
+      "mtime": "from the file date",
+      "user": "set by you",
+      "enricher": "from a plugin"
     },
     "dimensions": "Dimensions",
     "duration": "Duration",

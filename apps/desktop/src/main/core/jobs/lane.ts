@@ -1,5 +1,5 @@
 import { SECOND_MS } from '../clock';
-import type { JobQueue } from './job-queue';
+import type { JobQueue, LeaseFilter } from './job-queue';
 import type { JobKind, JobRow } from './job-types';
 
 export interface JobContext {
@@ -20,6 +20,7 @@ export interface LaneOptions {
   leaseMs?: number;
   heartbeatMs?: number;
   idlePollMs?: number;
+  leaseFilter?: (inFlight: readonly JobRow[]) => LeaseFilter | null;
 }
 
 const DEFAULT_LEASE_MS = 120 * SECOND_MS;
@@ -86,7 +87,10 @@ export class Lane {
 
   private pump(): void {
     while (this.running && this.inFlight.size < this.options.concurrency) {
-      const job = this.queue.lease(this.kinds, this.owner, this.leaseMs());
+      const filter = this.options.leaseFilter
+        ? this.options.leaseFilter([...this.jobs.values()])
+        : {};
+      const job = filter ? this.queue.lease(this.kinds, this.owner, this.leaseMs(), filter) : null;
       if (!job) return this.scheduleIdlePoll();
       this.track(job);
     }

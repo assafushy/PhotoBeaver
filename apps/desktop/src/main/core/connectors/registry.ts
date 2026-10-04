@@ -143,7 +143,14 @@ export class ConnectorRegistry {
     };
   }
 
-  private pluginContext(pluginId: string, signal: AbortSignal): PluginContext {
+  /**
+   * Plugin-wide `ctx` parts shared by connectors and enrichers.
+   *
+   * @param pluginId - Plugin id.
+   * @param signal - Cancellation signal.
+   * @returns The plugin context.
+   */
+  pluginContext(pluginId: string, signal: AbortSignal): PluginContext {
     const dataDir = path.join(this.deps.pluginDataRoot, pluginId);
     mkdirSync(dataDir, { recursive: true });
     return {

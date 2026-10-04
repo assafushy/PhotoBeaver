@@ -7,6 +7,32 @@ const RETRY_CAP_MS = HOUR_MS;
 const DONE_RETENTION_MS = DAY_MS;
 const DEAD_RETENTION_MS = 30 * DAY_MS;
 
+export interface LeaseFilter {
+  pluginIds?: readonly string[];
+  excludePluginIds?: readonly string[];
+}
+
+function marks(values: readonly unknown[]): string {
+  return values.map(() => '?').join(',');
+}
+
+function leaseWhere(
+  kinds: readonly JobKind[],
+  filter: LeaseFilter,
+): { sql: string; params: unknown[] } {
+  const parts = [`kind IN (${marks(kinds)})`];
+  const params: unknown[] = [...kinds];
+  if (filter.pluginIds) {
+    parts.push(filter.pluginIds.length ? `plugin_id IN (${marks(filter.pluginIds)})` : '0');
+    params.push(...filter.pluginIds);
+  }
+  if (filter.excludePluginIds?.length) {
+    parts.push(`(plugin_id IS NULL OR plugin_id NOT IN (${marks(filter.excludePluginIds)}))`);
+    params.push(...filter.excludePluginIds);
+  }
+  return { sql: parts.join(' AND '), params };
+}
+
 /**
  * Backoff before retrying a failed job.
  *
@@ -91,19 +117,73 @@ export class JobQueue {
    * @param leaseMs - Lease duration.
    * @returns The leased job, or null when nothing is runnable.
    */
-  lease(kinds: readonly JobKind[], owner: string, leaseMs: number): JobRow | null {
+  lease(
+    kinds: readonly JobKind[],
+    owner: string,
+    leaseMs: number,
+    filter: LeaseFilter = {},
+  ): JobRow | null {
+    return this.leaseMany(kinds, owner, leaseMs, filter, 1)[0] ?? null;
+  }
+
+  /**
+   * Atomically leases up to `limit` runnable jobs (used to group `enrichBatch` work).
+   *
+   * @param kinds - Job kinds.
+   * @param owner - Lease owner id.
+   * @param leaseMs - Lease duration.
+   * @param filter - Optional plugin include/exclude lists.
+   * @param limit - Maximum jobs.
+   * @returns The leased jobs, most urgent first.
+   */
+  leaseMany(
+    kinds: readonly JobKind[],
+    owner: string,
+    leaseMs: number,
+    filter: LeaseFilter,
+    limit: number,
+  ): JobRow[] {
     const now = this.clock();
-    const marks = kinds.map(() => '?').join(',');
-    const row = this.sqlite
+    const where = leaseWhere(kinds, filter);
+    const rows = this.sqlite
       .prepare(
         `UPDATE jobs SET status = 'leased', lease_owner = ?, lease_expires_at = ?,
            attempts = attempts + 1, updated_at = ?
-         WHERE id = (SELECT id FROM jobs WHERE status = 'queued' AND run_after <= ?
-                     AND kind IN (${marks}) ORDER BY priority, run_after, id LIMIT 1)
+         WHERE id IN (SELECT id FROM jobs WHERE status = 'queued' AND run_after <= ? AND ${where.sql}
+                      ORDER BY priority, run_after, id LIMIT ?)
          RETURNING *`,
       )
-      .get(owner, now + leaseMs, now, now, ...kinds);
-    return (row as JobRow | undefined) ?? null;
+      .all(owner, now + leaseMs, now, now, ...where.params, limit) as JobRow[];
+    return rows.sort((a, b) => a.priority - b.priority || a.run_after - b.run_after || a.id - b.id);
+  }
+
+  /**
+   * Queued or leased jobs of a kind, across all plugins.
+   *
+   * @param kind - Job kind.
+   * @returns The count.
+   */
+  pendingOfKind(kind: JobKind): number {
+    const row = this.sqlite
+      .prepare(`SELECT COUNT(*) AS n FROM jobs WHERE kind = ? AND status IN ('queued', 'leased')`)
+      .get(kind) as { n: number };
+    return row.n;
+  }
+
+  /**
+   * Queued or leased jobs of a kind for one plugin (used to detect a drained queue).
+   *
+   * @param kind - Job kind.
+   * @param pluginId - Plugin id.
+   * @returns The count.
+   */
+  pendingFor(kind: JobKind, pluginId: string): number {
+    const row = this.sqlite
+      .prepare(
+        `SELECT COUNT(*) AS n FROM jobs WHERE kind = ? AND plugin_id = ? AND status IN ('queued', 'leased')`,
+      )
+      .get(kind, pluginId) as { n: number };
+    return row.n;
   }
 
   /**

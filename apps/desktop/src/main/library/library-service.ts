@@ -1,13 +1,13 @@
 import { schema, type LibraryDb } from '@photobeaver/db';
-import type { IpcParsedInput, LibraryPage } from '@photobeaver/shared';
-import { and, count, desc, eq, isNull, lt, or, type SQL } from 'drizzle-orm';
+import type { IpcParsedInput, LibraryFilter, LibraryPage } from '@photobeaver/shared';
+import { and, count, desc, eq, lt, or, type SQL } from 'drizzle-orm';
+import { filterCondition } from './library-filter';
 
-type LibraryQuery = IpcParsedInput<'library.query'>;
+type LibraryQuery = Omit<IpcParsedInput<'library.query'>, 'filter'> & { filter?: LibraryFilter };
 type Cursor = NonNullable<LibraryQuery['cursor']>;
 
 const { assets } = schema;
 const sortTime = schema.librarySortExpression;
-const visible = and(eq(assets.hidden, 0), isNull(assets.missingSince));
 
 function afterCursor(cursor: Cursor): SQL | undefined {
   return or(
@@ -17,6 +17,7 @@ function afterCursor(cursor: Cursor): SQL | undefined {
 }
 
 function fetchRows(db: LibraryDb, query: LibraryQuery) {
+  const visible = filterCondition(query.filter ?? {});
   const where = query.cursor ? and(visible, afterCursor(query.cursor)) : visible;
   return db
     .select({
@@ -35,8 +36,14 @@ function fetchRows(db: LibraryDb, query: LibraryQuery) {
     .all();
 }
 
-function countVisible(db: LibraryDb): number {
-  return db.select({ n: count() }).from(assets).where(visible).get()?.n ?? 0;
+function countVisible(db: LibraryDb, query: LibraryQuery): number {
+  return (
+    db
+      .select({ n: count() })
+      .from(assets)
+      .where(filterCondition(query.filter ?? {}))
+      .get()?.n ?? 0
+  );
 }
 
 /**
@@ -54,6 +61,6 @@ export function queryLibraryPage(db: LibraryDb, query: LibraryQuery): LibraryPag
   return {
     items: pageRows.map(({ sortTime: _sortTime, ...item }) => item),
     nextCursor: hasMore && last ? { capturedAt: last.sortTime, id: last.id } : null,
-    total: countVisible(db),
+    total: countVisible(db, query),
   };
 }

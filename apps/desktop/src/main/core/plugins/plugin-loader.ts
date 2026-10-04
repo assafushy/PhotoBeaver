@@ -10,6 +10,8 @@ import { HostHandle } from './host-handle';
 import type { HostLauncher } from './host-launcher';
 import type { PluginStore } from './plugin-store';
 import { RemoteConnector } from './remote-connector';
+import { RemoteEnricher } from './remote-enricher';
+import type { EnricherEntry, EnricherManifest } from '../enrich/types';
 
 export interface LoaderDeps {
   launcher: HostLauncher;
@@ -18,6 +20,7 @@ export interface LoaderDeps {
   logger: CoreLog;
   pluginLog(pluginId: string): { log: CoreLog; file: string };
   storage(pluginId: string): PluginStorage;
+  settings(manifest: PluginManifest): Record<string, unknown>;
   onStarted(pluginId: string): void;
   onCrashed(pluginId: string, restartInMs: number | null): void;
   clock?: Clock;
@@ -28,6 +31,7 @@ export interface LoadedPlugin {
   installPath: string;
   handle: HostHandle;
   entry: ConnectorEntry | null;
+  enricher: EnricherEntry | null;
 }
 
 const HEAVY_MEMORY_MB = 4096;
@@ -46,6 +50,7 @@ function hostInit(deps: LoaderDeps, manifest: PluginManifest, installPath: strin
   mkdirSync(tempDir, { recursive: true });
   return {
     pluginId: manifest.id,
+    type: manifest.type,
     pluginDir: installPath,
     main: manifest.main,
     dataDir,
@@ -69,7 +74,7 @@ function createHandle(deps: LoaderDeps, manifest: PluginManifest, installPath: s
         contexts: deps.contexts,
         storage: deps.storage(manifest.id),
         pluginLog: log,
-        settings: async () => ({}),
+        settings: async () => deps.settings(manifest),
       }),
     onStarted: () => deps.onStarted(manifest.id),
     onCrashed: (delay) => deps.onCrashed(manifest.id, delay),
@@ -97,5 +102,8 @@ export function loadPlugin(
   const entry = isConnectorManifest(manifest)
     ? { manifest, plugin: new RemoteConnector(handle, deps.contexts, manifest.configSchema) }
     : null;
-  return { manifest, installPath, handle, entry };
+  const enricher = manifest.enricher
+    ? { manifest: manifest as EnricherManifest, client: new RemoteEnricher(handle, deps.contexts) }
+    : null;
+  return { manifest, installPath, handle, entry, enricher };
 }

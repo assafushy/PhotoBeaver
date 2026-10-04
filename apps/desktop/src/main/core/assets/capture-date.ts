@@ -1,11 +1,28 @@
-export type CapturedAtSource = 'exif' | 'source' | 'filename' | 'mtime';
+export type CapturedAtSource = 'user' | 'exif' | 'source' | 'enricher' | 'filename' | 'mtime';
 
 export interface CapturedAt {
   value: number;
   source: CapturedAtSource;
 }
 
-const PRECEDENCE: Record<CapturedAtSource, number> = { exif: 3, source: 2, filename: 1, mtime: 0 };
+const PRECEDENCE: Record<CapturedAtSource, number> = {
+  user: 5,
+  exif: 4,
+  source: 3,
+  enricher: 2,
+  filename: 1,
+  mtime: 0,
+};
+
+/**
+ * Rank of a core-field source (SPEC 6.3): user > exif > source > enricher > filename > mtime.
+ *
+ * @param source - Where a value came from.
+ * @returns Higher wins.
+ */
+export function precedenceOf(source: CapturedAtSource): number {
+  return PRECEDENCE[source];
+}
 
 const FILENAME_PATTERNS: RegExp[] = [
   /(?:^|[^\d])((?:19|20)\d{2})(\d{2})(\d{2})[_-]?(\d{2})(\d{2})(\d{2})(?:\d{3})?(?!\d)/,

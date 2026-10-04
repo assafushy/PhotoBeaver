@@ -33,9 +33,34 @@ export const appInfoSchema = z.object({
   libraryDir: z.string(),
 });
 
+export const libraryFilterSchema = z.object({
+  text: z.string().max(200).optional(),
+  from: z.number().int().optional(),
+  to: z.number().int().optional(),
+  sourceIds: z.array(z.string()).max(100).optional(),
+  mediaTypes: z.array(z.enum(['image', 'video'])).optional(),
+  tagIds: z.array(z.string()).max(20).optional(),
+  favoritesOnly: z.boolean().optional(),
+  multiSource: z.boolean().optional(),
+});
+
 export const libraryQueryInputSchema = z.object({
   cursor: libraryCursorSchema.nullable().default(null),
   limit: z.number().int().min(1).max(1000).default(200),
+  filter: libraryFilterSchema.default({}),
+});
+
+const facetSchema = z.object({ id: z.string(), name: z.string(), count: z.number().int() });
+
+export const libraryFacetsSchema = z.object({
+  sources: z.array(facetSchema),
+  places: z.array(facetSchema),
+  tags: z.array(facetSchema),
+});
+
+export const geoPointsSchema = z.object({
+  points: z.array(z.tuple([z.string(), z.number(), z.number()])),
+  truncated: z.boolean(),
 });
 
 export const libraryPageSchema = z.object({
@@ -102,7 +127,7 @@ export const assetDetailSchema = z.object({
   height: z.number().int().nullable(),
   durationMs: z.number().int().nullable(),
   capturedAt: z.number().int().nullable(),
-  capturedAtSource: z.enum(['exif', 'source', 'filename', 'mtime']).nullable(),
+  capturedAtSource: z.enum(['user', 'exif', 'source', 'enricher', 'filename', 'mtime']).nullable(),
   lat: z.number().nullable(),
   lon: z.number().nullable(),
   favorite: z.boolean(),
@@ -139,6 +164,8 @@ export const pluginSummarySchema = z.object({
   restarts: z.number().int(),
   sourceCount: z.number().int(),
   devPath: z.string().nullable(),
+  queueSize: z.number().int(),
+  hasSettings: z.boolean(),
 });
 
 export const stagedPackageSchema = z.object({
@@ -164,6 +191,42 @@ const logsInput = z.object({
 const pathInput = z.object({ path: z.string().min(1) });
 const tokenInput = z.object({ token: z.string().min(1) });
 
+const duplicateAssetSchema = z.object({
+  id: z.string(),
+  mediaType: z.enum(['image', 'video']),
+  width: z.number().nullable(),
+  height: z.number().nullable(),
+  capturedAt: z.number().nullable(),
+  sizeBytes: z.number().nullable(),
+  sources: z.array(z.string()),
+  place: z.string().nullable(),
+});
+
+export const duplicateGroupSchema = z.object({
+  id: z.string(),
+  kind: z.enum(['exact', 'near']),
+  confidence: z.number().nullable(),
+  createdAt: z.number().nullable(),
+  assets: z.array(duplicateAssetSchema),
+});
+
+export const mergeRecordSchema = z.object({
+  id: z.string(),
+  survivingAssetId: z.string(),
+  mergedBy: z.string(),
+  createdAt: z.number().nullable(),
+});
+
+export const appSettingsSchema = z.object({
+  mapTileUrl: z.string().max(500).nullable(),
+  duplicatesAlwaysAsk: z.boolean(),
+});
+
+export const pluginSettingsSchema = z.object({
+  configSchema: z.custom<ConfigSchema>((value) => typeof value === 'object' && value !== null),
+  values: z.record(z.string(), z.unknown()),
+});
+
 interface ChannelContract<I extends z.ZodType, O extends z.ZodType> {
   requires: Permission;
   input: I;
@@ -185,6 +248,16 @@ export const IPC_CONTRACT = {
     requires: 'assets.view',
     input: libraryQueryInputSchema,
     output: libraryPageSchema,
+  }),
+  'library.facets': channel({
+    requires: 'assets.view',
+    input: emptyInput,
+    output: libraryFacetsSchema,
+  }),
+  'library.geoPoints': channel({
+    requires: 'assets.view',
+    input: z.object({ filter: libraryFilterSchema.default({}) }),
+    output: geoPointsSchema,
   }),
   'assets.get': channel({ requires: 'assets.view', input: idInput, output: assetDetailSchema }),
   'assets.openInSource': channel({ requires: 'assets.view', input: idInput, output: nothing }),
@@ -270,6 +343,44 @@ export const IPC_CONTRACT = {
     output: pluginSummarySchema.nullable(),
   }),
   'plugins.reload': channel({ requires: 'plugins.manage', input: idInput, output: nothing }),
+  'plugins.getSettings': channel({
+    requires: 'plugins.manage',
+    input: idInput,
+    output: pluginSettingsSchema,
+  }),
+  'plugins.setSettings': channel({
+    requires: 'plugins.manage',
+    input: z.object({ id: z.string(), values: z.record(z.string(), z.unknown()) }),
+    output: nothing,
+  }),
+  'plugins.rerun': channel({ requires: 'sources.sync', input: idInput, output: nothing }),
+  'duplicates.list': channel({
+    requires: 'assets.view',
+    input: emptyInput,
+    output: z.array(duplicateGroupSchema),
+  }),
+  'duplicates.merge': channel({
+    requires: 'duplicates.merge',
+    input: z.object({ id: z.string(), keepAssetId: z.string() }),
+    output: nothing,
+  }),
+  'duplicates.dismiss': channel({ requires: 'duplicates.merge', input: idInput, output: nothing }),
+  'merges.recent': channel({
+    requires: 'assets.view',
+    input: emptyInput,
+    output: z.array(mergeRecordSchema),
+  }),
+  'merges.undo': channel({ requires: 'duplicates.merge', input: idInput, output: nothing }),
+  'settings.get': channel({
+    requires: 'assets.view',
+    input: emptyInput,
+    output: appSettingsSchema,
+  }),
+  'settings.set': channel({
+    requires: 'library.admin',
+    input: appSettingsSchema.partial(),
+    output: nothing,
+  }),
 } as const;
 
 export type IpcContract = typeof IPC_CONTRACT;
@@ -283,6 +394,9 @@ export type SessionUser = IpcOutput<'session.current'>;
 export type LibraryQueryInput = IpcInput<'library.query'>;
 export type LibraryPage = IpcOutput<'library.query'>;
 export type AssetSummary = LibraryPage['items'][number];
+export type LibraryFilter = z.infer<typeof libraryFilterSchema>;
+export type LibraryFacets = z.infer<typeof libraryFacetsSchema>;
+export type GeoPoints = z.infer<typeof geoPointsSchema>;
 export type AssetDetail = IpcOutput<'assets.get'>;
 export type SourceSummary = z.infer<typeof sourceSummarySchema>;
 export type ConnectorInfo = z.infer<typeof connectorInfoSchema>;
@@ -291,6 +405,10 @@ export type SyncState = (typeof SYNC_STATES)[number];
 export type PluginSummary = z.infer<typeof pluginSummarySchema>;
 export type StagedPackageSummary = z.infer<typeof stagedPackageSchema>;
 export type PluginStatus = (typeof PLUGIN_STATUSES)[number];
+export type DuplicateGroup = z.infer<typeof duplicateGroupSchema>;
+export type MergeRecord = z.infer<typeof mergeRecordSchema>;
+export type AppSettings = z.infer<typeof appSettingsSchema>;
+export type PluginSettingsView = z.infer<typeof pluginSettingsSchema>;
 
 /**
  * Narrows an arbitrary string to a known IPC channel.

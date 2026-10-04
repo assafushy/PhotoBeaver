@@ -10,6 +10,7 @@ export interface SummaryInput {
   error: string | undefined;
   isDefault: boolean;
   sourceCount: number;
+  queueSize: number;
 }
 
 function statusOf(input: SummaryInput): PluginSummary['status'] {
@@ -53,6 +54,9 @@ export function pluginSummary(input: SummaryInput): PluginSummary {
     restarts: loaded?.handle.restarts ?? 0,
     sourceCount: input.sourceCount,
     devPath: row.installSource === 'dev' ? row.installPath : null,
+    queueSize: input.queueSize,
+    hasSettings:
+      row.type === 'enricher' && Object.keys(manifest.configSchema?.properties ?? {}).length > 0,
   };
 }
 
