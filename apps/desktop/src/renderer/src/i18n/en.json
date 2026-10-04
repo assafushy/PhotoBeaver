@@ -179,7 +179,8 @@
   "map": {
     "count_one": "{{count}} photo with a location",
     "count_other": "{{count}} photos with a location",
-    "truncated": "showing the first 200,000"
+    "truncated": "showing the first 200,000",
+    "unavailable": "The map needs graphics acceleration (WebGL), which is not available on this computer."
   },
   "duplicates": {
     "intro": "Photo Beaver found these possible duplicates. Merge them into one item, or tell it they are different.",

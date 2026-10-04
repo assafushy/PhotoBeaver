@@ -88,15 +88,32 @@ test('lists the resized copy in Duplicates, merges it and undoes the merge', asy
   await app.close();
 });
 
-test('shows geotagged photos on the map', async () => {
-  const { app, page } = await launchApp(userDataDir);
+function collectRendererErrors(page: Page): string[] {
   const errors: string[] = [];
   page.on('console', (message) => {
     if (message.type() === 'error') errors.push(message.text());
   });
+  page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`));
+  page.on('crash', () => errors.push('renderer crashed'));
+  return errors;
+}
+
+async function expectMapMarkers(page: Page, errors: string[]): Promise<void> {
+  try {
+    await expect(page.getByTestId('map-count')).toContainText('3 photos');
+    await expect.poll(() => mapMarkerTotal(page), { timeout: 20_000 }).toBe(3);
+  } catch (error) {
+    throw new Error(`${String(error)}\nRenderer errors:\n${errors.join('\n')}`, {
+      cause: error,
+    });
+  }
+}
+
+test('shows geotagged photos on the map', async () => {
+  const { app, page } = await launchApp(userDataDir);
+  const errors = collectRendererErrors(page);
   await page.getByRole('link', { name: 'Map' }).click();
-  await expect(page.getByTestId('map-count')).toContainText('3 photos');
-  await expect.poll(() => mapMarkerTotal(page), { timeout: 20_000 }).toBe(3);
+  await expectMapMarkers(page, errors);
   expect(errors).toEqual([]);
   await app.close();
 });

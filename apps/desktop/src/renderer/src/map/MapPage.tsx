@@ -1,12 +1,13 @@
 import type { GeoPoints } from '@photobeaver/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useMemo, useRef, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { usePbEvent } from '../lib/use-pb-event';
 import { FilterBar } from '../search/FilterBar';
 import { useSettledFilter } from '../search/filter-store';
 import { usePhotoMap, type MapFocus } from './use-photo-map';
+import { supportsWebGl } from './webgl';
 
 function useGeoPoints() {
   const client = useQueryClient();
@@ -43,6 +44,15 @@ function MapStatus({ count, truncated }: { count: number; truncated: boolean }) 
   );
 }
 
+function MapUnavailable() {
+  const { t } = useTranslation();
+  return (
+    <p role="status" className="p-8 text-neutral-500" data-testid="map-unavailable">
+      {t('map.unavailable')}
+    </p>
+  );
+}
+
 function MapHeader({ data }: { data: GeoPoints | undefined }) {
   const { t } = useTranslation();
   return (
@@ -50,6 +60,13 @@ function MapHeader({ data }: { data: GeoPoints | undefined }) {
       <h1 className="text-lg font-semibold">{t('nav.map')}</h1>
       {data && <MapStatus count={data.points.length} truncated={data.truncated} />}
     </header>
+  );
+}
+
+function MapCanvas({ container, ready }: { container: RefObject<HTMLDivElement>; ready: boolean }) {
+  if (!supportsWebGl()) return <MapUnavailable />;
+  return (
+    <div ref={container} className="relative min-h-0 flex-1" data-testid="map" data-ready={ready} />
   );
 }
 
@@ -69,12 +86,7 @@ export function MapPage() {
     <div className="flex min-h-0 flex-1 flex-col">
       <MapHeader data={data} />
       <FilterBar />
-      <div
-        ref={container}
-        className="relative min-h-0 flex-1"
-        data-testid="map"
-        data-ready={ready}
-      />
+      <MapCanvas container={container} ready={ready} />
     </div>
   );
 }

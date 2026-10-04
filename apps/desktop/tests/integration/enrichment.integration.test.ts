@@ -42,7 +42,7 @@ describe('enrichment pipeline headless with the default plugins', () => {
   const assetOf = (file: string) =>
     temp.library.sqlite
       .prepare(
-        `SELECT a.* FROM assets a JOIN instances i ON i.asset_id = a.id WHERE i.external_id LIKE ? AND i.deleted_at IS NULL`,
+        `SELECT a.* FROM assets a JOIN instances i ON i.asset_id = a.id WHERE REPLACE(i.external_id, '\\', '/') LIKE ? AND i.deleted_at IS NULL`,
       )
       .get(`%${file}`) as Record<string, unknown> | undefined;
   const suggestions = () =>
@@ -92,7 +92,7 @@ describe('enrichment pipeline headless with the default plugins', () => {
   afterAll(async () => {
     await core.stop();
     temp.cleanup();
-    rmSync(root, { recursive: true, force: true });
+    rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   });
 
   it('uses the EXIF capture time and position', () => {
