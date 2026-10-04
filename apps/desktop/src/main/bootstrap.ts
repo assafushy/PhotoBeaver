@@ -105,8 +105,10 @@ function registerIpc({ paths, logger, library, session, core, developerMode }: S
       developerMode,
       pickPackage: pickPluginPackage,
       pickDirectory,
+      openExternal: openBrowser,
     },
     duplicates: core.duplicates,
+    people: core.people,
   });
 }
 

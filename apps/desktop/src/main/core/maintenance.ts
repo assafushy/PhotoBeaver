@@ -11,12 +11,14 @@ export interface MaintenanceDeps {
   queue: JobQueue;
   logger: CoreLog;
   removeAssetFiles: (assetIds: string[]) => Promise<void>;
+  tidyFaces?: () => void;
   clock?: Clock;
 }
 
 /**
- * Runs once a minute: recovers expired leases, deletes old jobs and purges
- * assets that have been missing for 30 days (SPEC 4.3, 7.3).
+ * Runs once a minute: recovers expired leases, deletes old jobs, purges assets
+ * that have been missing for 30 days (SPEC 4.3, 7.3), and tidies faces (orphan
+ * embeddings, people without faces).
  */
 export class Maintenance {
   private timer: NodeJS.Timeout | null = null;
@@ -48,6 +50,7 @@ export class Maintenance {
         ? this.deps.db.transaction((tx) => deleteAssets(tx as unknown as LibraryDb, expired))
         : [];
     await this.deps.removeAssetFiles(purged);
+    this.deps.tidyFaces?.();
     if (recovered + cleaned + purged.length > 0)
       this.deps.logger.info({ recovered, cleaned, purged: purged.length }, 'Maintenance pass');
     return { recovered, cleaned, purged: purged.length };

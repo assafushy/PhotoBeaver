@@ -79,7 +79,9 @@ export class PluginStore {
   }
 
   /**
-   * Copies a validated plugin folder into its version folder (replacing it).
+   * Copies a validated plugin folder into its version folder (replacing it). The
+   * folder's own `node_modules` (development dependencies) is skipped; bundled
+   * native dependencies under `dist/node_modules` are kept.
    *
    * @param sourceDir - Folder holding the plugin.
    * @param manifest - Its manifest.
@@ -91,7 +93,7 @@ export class PluginStore {
     rmSync(incoming, { recursive: true, force: true });
     cpSync(sourceDir, incoming, {
       recursive: true,
-      filter: (src) => !src.split(path.sep).includes('node_modules'),
+      filter: (src) => path.relative(sourceDir, src).split(path.sep)[0] !== 'node_modules',
     });
     rmSync(target, { recursive: true, force: true });
     renameSync(incoming, target);

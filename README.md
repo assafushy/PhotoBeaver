@@ -48,5 +48,6 @@ Also available in any build: `PB_DEV_SOCKET` sets the developer socket path that
 - `plugins/connector-facebook-export`, `plugins/connector-instagram-export`: import Meta data downloads, read in place from a folder or the downloaded .zip files
 - `plugins/enricher-metadata`, `plugins/enricher-geocode`, `plugins/enricher-dedup`: the default enrichers (capture date, camera and GPS; offline place names; duplicate detection and merging)
 - `docs/plugin-guide.md`: how to write, test, pack and install a plugin
+- `plugins/enricher-faces`: face detection and recognition (off by default; downloads InsightFace models, which are for non-commercial research only and are not part of this MIT repository)
 - `docs/DECISIONS.md`: implementation decisions not covered by the spec
 - `docs/manual-tests/m4.md`: manual checks against real accounts and exports

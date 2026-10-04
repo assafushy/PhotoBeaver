@@ -1,3 +1,4 @@
+import type { FaceStore } from '../faces/face-store';
 import { schema, type LibraryDb } from '@photobeaver/db';
 import { eq } from 'drizzle-orm';
 import { isMergeBlocked, mergeAssets, type MergeResult } from '../assets/merge';
@@ -20,6 +21,7 @@ export class MergeService {
     private readonly scheduler: EnrichScheduler,
     private readonly events: EventSink,
     private readonly now: () => number,
+    private readonly faces?: FaceStore,
   ) {}
 
   /**
@@ -58,7 +60,12 @@ export class MergeService {
   mergeByUser(assetIds: readonly string[], keepId: string): MergeResult[] {
     const results = assetIds
       .filter((id) => id !== keepId && this.exists(id))
-      .map((id) => mergeAssets(this.db, keepId, id, 'user', this.now(), { survivorId: keepId }));
+      .map((id) =>
+        mergeAssets(this.db, keepId, id, 'user', this.now(), {
+          survivorId: keepId,
+          faces: this.faces,
+        }),
+      );
     this.afterMerge([keepId]);
     return results;
   }
@@ -69,7 +76,12 @@ export class MergeService {
    * @param mergeId - asset_merges id.
    */
   undo(mergeId: string): void {
-    const { survivingAssetId, restoredAssetId } = unmergeAssets(this.db, mergeId, this.now());
+    const { survivingAssetId, restoredAssetId } = unmergeAssets(
+      this.db,
+      mergeId,
+      this.now(),
+      this.faces,
+    );
     this.afterMerge([survivingAssetId, restoredAssetId]);
   }
 
@@ -78,7 +90,9 @@ export class MergeService {
     let current = assetId;
     for (const other of others) {
       if (!this.exists(other) || !this.exists(current)) continue;
-      const result = mergeAssets(this.db, current, other, pluginId, this.now());
+      const result = mergeAssets(this.db, current, other, pluginId, this.now(), {
+        faces: this.faces,
+      });
       current = result.survivingAssetId;
       results.push(result);
     }

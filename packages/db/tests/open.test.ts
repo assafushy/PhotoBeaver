@@ -15,7 +15,9 @@ const EXPECTED_TABLES = [
   'audit_log',
   'duplicate_suggestions',
   'enrichments',
+  'face_rejections',
   'faces',
+  'faces_vec',
   'instances',
   'jobs',
   'people',
@@ -67,6 +69,27 @@ describe('openLibrary', () => {
   it('reports all migrations applied without a backup on a fresh library', () => {
     expect(library.migration.applied).toBe(library.migration.total);
     expect(library.migration.backupPath).toBeNull();
+  });
+
+  it('finds nearest faces with sqlite-vec (cosine)', () => {
+    const insert = library.sqlite.prepare(
+      'INSERT INTO faces_vec (face_id, embedding) VALUES (?, ?)',
+    );
+    const vector = (first: number, second: number) => {
+      const v = new Float32Array(512);
+      v[0] = first;
+      v[1] = second;
+      return v;
+    };
+    insert.run('same', vector(1, 0.05));
+    insert.run('other', vector(0, 1));
+    const hits = library.sqlite
+      .prepare(
+        'SELECT face_id, distance FROM faces_vec WHERE embedding MATCH ? AND k = 2 ORDER BY distance',
+      )
+      .all(vector(1, 0)) as { face_id: string; distance: number }[];
+    expect(hits.map((h) => h.face_id)).toEqual(['same', 'other']);
+    expect(hits[0]!.distance).toBeLessThan(0.01);
   });
 
   it('supports full-text search', () => {

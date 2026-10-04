@@ -11,6 +11,7 @@
     "label": "Main navigation",
     "library": "Library",
     "map": "Map",
+    "people": "People",
     "duplicates": "Duplicates",
     "sources": "Sources",
     "plugins": "Plugins",
@@ -63,7 +64,8 @@
     "camera": "Camera",
     "tags": "Tags",
     "pluginData": "Plugin data",
-    "undoMerge": "Undo merge"
+    "undoMerge": "Undo merge",
+    "people": "People"
   },
   "sources": {
     "addSource": "Add source",
@@ -165,7 +167,9 @@
     "settingsTitle": "{{name}} settings",
     "rerun": "Re-run on library",
     "queued_one": "{{count}} item queued",
-    "queued_other": "{{count}} items queued"
+    "queued_other": "{{count}} items queued",
+    "noticeMore": "Read the license",
+    "acceptAndEnable": "Accept and turn on"
   },
   "search": {
     "label": "Search the library",
@@ -178,7 +182,8 @@
     "tag": "Any tag",
     "source": "Any source",
     "clear": "Clear filters",
-    "noMatches": "Nothing matches these filters."
+    "noMatches": "Nothing matches these filters.",
+    "person": "Any person"
   },
   "map": {
     "count_one": "{{count}} photo with a location",
@@ -200,5 +205,22 @@
     "mergedByYou": "Merged by you",
     "mergedByPlugin": "Merged automatically by {{name}}",
     "undo": "Undo"
+  },
+  "people": {
+    "intro": "People the face plugin found in your photos. Click a name to change it.",
+    "empty": "No people yet. Turn on Faces in Plugins, then wait for your library to be scanned.",
+    "addName": "Add a name",
+    "nameLabel": "Name",
+    "photos_one": "{{count}} photo",
+    "photos_other": "{{count}} photos",
+    "faces": "Faces",
+    "unnamed": "Unnamed",
+    "moveTo": "Move to...",
+    "moveToNew": "Move to a new person",
+    "notThisPerson": "Not this person",
+    "makeCover": "Use as cover",
+    "selectHint": "Select faces to move them to someone else.",
+    "mergeInto": "Merge into...",
+    "showPhotos": "Show photos"
   }
 }

@@ -2,7 +2,8 @@ import type { AssetDetail } from '@photobeaver/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { faceUrl } from '../people/use-people';
 import { cameraLines, formatValue } from './camera';
 
 export function Row({ label, children }: { label: string; children: ReactNode }) {
@@ -55,6 +56,42 @@ export function CameraRow({ asset }: { asset: AssetDetail }) {
       {[lines.camera, lines.lens, lines.exposure].filter(Boolean).map((line) => (
         <div key={line}>{line}</div>
       ))}
+    </Row>
+  );
+}
+
+function FaceChip({ face }: { face: AssetDetail['faces'][number] }) {
+  const { t } = useTranslation();
+  const body = (
+    <>
+      <img src={faceUrl(face.id)} alt="" className="h-8 w-8 rounded-full object-cover" />
+      <span className="text-xs">{face.personName ?? t('people.unnamed')}</span>
+    </>
+  );
+  if (!face.personId) return <li className="flex items-center gap-1 opacity-70">{body}</li>;
+  return (
+    <li>
+      <Link
+        to={`/people/${face.personId}`}
+        className="flex items-center gap-1 hover:underline"
+        data-testid="viewer-person"
+      >
+        {body}
+      </Link>
+    </li>
+  );
+}
+
+export function PeopleRow({ asset }: { asset: AssetDetail }) {
+  const { t } = useTranslation();
+  if (asset.faces.length === 0) return null;
+  return (
+    <Row label={t('viewer.people')}>
+      <ul className="flex flex-wrap gap-2">
+        {asset.faces.map((face) => (
+          <FaceChip key={face.id} face={face} />
+        ))}
+      </ul>
     </Row>
   );
 }

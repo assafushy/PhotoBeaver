@@ -8,6 +8,8 @@ import type {
   LibraryFacets,
   LibraryFilter,
   MergeRecord,
+  PersonFacesPage,
+  PersonSummary,
   PluginSettingsView,
   AssetDetail,
   ConnectorInfo,
@@ -35,6 +37,18 @@ export interface PbApi {
     dismiss(id: string): Promise<null>;
   };
   merges: { recent(): Promise<MergeRecord[]>; undo(id: string): Promise<null> };
+  people: {
+    list(): Promise<PersonSummary[]>;
+    faces(id: string, after?: string | null): Promise<PersonFacesPage>;
+    rename(id: string, name: string): Promise<null>;
+    merge(fromId: string, intoId: string): Promise<null>;
+    moveFaces(
+      faceIds: string[],
+      target: { personId: string } | { newPerson: true },
+    ): Promise<{ personId: string }>;
+    rejectFace(faceId: string): Promise<null>;
+    setCover(personId: string, faceId: string): Promise<null>;
+  };
   settings: { get(): Promise<AppSettings>; set(patch: Partial<AppSettings>): Promise<null> };
   assets: {
     get(id: string): Promise<AssetDetail>;
@@ -70,6 +84,7 @@ export interface PbApi {
     getSettings(id: string): Promise<PluginSettingsView>;
     setSettings(id: string, values: Record<string, unknown>): Promise<null>;
     rerun(id: string): Promise<null>;
+    openNotice(id: string): Promise<null>;
   };
   events: {
     on<K extends PbEventName>(name: K, listener: (payload: PbEvents[K]) => void): Unsubscribe;

@@ -10,7 +10,8 @@
       "dependsOn": ["^build"]
     },
     "test": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+      "passThroughEnv": ["PB_FACE_MODELS_DIR"]
     },
     "e2e": {
       "dependsOn": ["build"],

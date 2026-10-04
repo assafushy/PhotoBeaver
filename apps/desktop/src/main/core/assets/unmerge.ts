@@ -1,3 +1,5 @@
+import type { FaceStore } from '../faces/face-store';
+import { restoreFacesOnUnmerge } from '../faces/merge-faces';
 import { schema, type LibraryDb } from '@photobeaver/db';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { refreshSearchText } from '../enrich/search-text';
@@ -38,7 +40,12 @@ function loadMerge(db: LibraryDb, mergeId: string): MergeRow {
   return row;
 }
 
-function restoreMergedAsset(db: LibraryDb, snapshot: MergeSnapshot, row: MergeRow): void {
+function restoreMergedAsset(
+  db: LibraryDb,
+  snapshot: MergeSnapshot,
+  row: MergeRow,
+  store?: FaceStore,
+): void {
   const m = snapshot.mergedMemberships;
   db.insert(assets).values(snapshot.merged).run();
   const movedIds = JSON.parse(row.movedInstanceIdsJson) as string[];
@@ -48,7 +55,9 @@ function restoreMergedAsset(db: LibraryDb, snapshot: MergeSnapshot, row: MergeRo
       .where(and(inArray(instances.id, movedIds), eq(instances.assetId, row.survivingAssetId)))
       .run();
   }
-  if (m.faceIds.length > 0)
+  if (store && snapshot.mergedFaces)
+    restoreFacesOnUnmerge(db, store, snapshot.mergedFaces, row.mergedAssetId);
+  else if (m.faceIds.length > 0)
     db.update(faces).set({ assetId: row.mergedAssetId }).where(inArray(faces.id, m.faceIds)).run();
   for (const link of m.albums) db.insert(albumAssets).values(link).onConflictDoNothing().run();
   for (const link of m.tags) db.insert(assetTags).values(link).onConflictDoNothing().run();
@@ -137,12 +146,13 @@ export function unmergeAssets(
   db: LibraryDb,
   mergeId: string,
   now: number,
+  store?: FaceStore,
 ): { survivingAssetId: string; restoredAssetId: string } {
   return db.transaction((txRaw) => {
     const tx = txRaw as unknown as LibraryDb;
     const row = loadMerge(tx, mergeId);
     const snapshot = JSON.parse(row.snapshotJson!) as MergeSnapshot;
-    restoreMergedAsset(tx, snapshot, row);
+    restoreMergedAsset(tx, snapshot, row, store);
     removeAddedLinks(tx, row.survivingAssetId, snapshot.added);
     restoreSurvivorFields(tx, row.survivingAssetId, snapshot, now);
     tx.update(assetMerges).set({ undoneAt: now }).where(eq(assetMerges.id, mergeId)).run();

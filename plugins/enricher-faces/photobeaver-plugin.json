@@ -1,0 +1,73 @@
+{
+  "id": "com.photobeaver.enricher-faces",
+  "name": "Faces",
+  "version": "0.1.0",
+  "type": "enricher",
+  "apiVersion": "1",
+  "main": "dist/index.js",
+  "description": "Finds faces in your photos so they can be grouped into people. Downloads the face models when turned on. Everything runs on this computer.",
+  "author": { "name": "Photo Beaver" },
+  "license": "MIT",
+  "engines": { "photobeaver": ">=0.1.0" },
+  "default": { "enabledOnInstall": false },
+  "permissions": {
+    "originals": "thumbnail",
+    "assets": "none",
+    "network": [
+      "github.com",
+      "objects.githubusercontent.com",
+      "release-assets.githubusercontent.com"
+    ],
+    "filesystem": "none",
+    "oauth": false,
+    "nativeModules": true,
+    "gpu": false
+  },
+  "enricher": {
+    "accepts": ["image/*"],
+    "input": "thumbnail",
+    "dependsOn": ["com.photobeaver.enricher-metadata"],
+    "produces": ["faces"],
+    "resourceClass": "cpu-heavy",
+    "concurrency": 1,
+    "runOn": ["new", "changed"]
+  },
+  "enableNotice": {
+    "title": "Face recognition models",
+    "body": "Faces downloads the InsightFace buffalo_l models (SCRFD-10G for finding faces and ArcFace w600k_r50 for telling them apart, about 290 MB) from InsightFace's GitHub release page. These models are licensed for non-commercial research purposes only, and they are not part of Photo Beaver. Everything runs on this computer: no photos leave it.",
+    "url": "https://github.com/deepinsight/insightface/tree/master/model_zoo"
+  },
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "minFaceSize": {
+        "type": "integer",
+        "default": 40,
+        "minimum": 8,
+        "maximum": 1024,
+        "title": "Smallest face to keep (pixels in the 1024 px preview)"
+      },
+      "detectionThreshold": {
+        "type": "number",
+        "default": 0.7,
+        "minimum": 0.1,
+        "maximum": 0.99,
+        "title": "How sure the detector must be that it found a face"
+      },
+      "clusterDistance": {
+        "type": "number",
+        "default": 0.5,
+        "minimum": 0.1,
+        "maximum": 1,
+        "title": "How similar faces must be to group (cosine distance)"
+      },
+      "minFacesPerPerson": {
+        "type": "integer",
+        "default": 3,
+        "minimum": 1,
+        "maximum": 50,
+        "title": "Faces needed before a new person is created"
+      }
+    }
+  }
+}

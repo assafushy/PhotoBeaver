@@ -66,6 +66,13 @@ export const manifestSchema = z
     configSchema: z.custom<ConfigSchema>((v) => typeof v === 'object' && v !== null).default({}),
     settingsSchema: z.custom<ConfigSchema>((v) => typeof v === 'object' && v !== null).optional(),
     default: z.object({ enabledOnInstall: z.boolean() }).optional(),
+    enableNotice: z
+      .object({
+        title: z.string().min(1).max(120),
+        body: z.string().min(1).max(4000),
+        url: z.url().optional(),
+      })
+      .optional(),
   })
   .superRefine((manifest, ctx) => {
     if (manifest.type === 'connector' && !manifest.connector)

@@ -4,6 +4,7 @@ export const PB_EVENT_NAMES: readonly PbEventName[] = [
   'library.changed',
   'sources.changed',
   'plugins.changed',
+  'people.changed',
   'sync.progress',
   'thumbs.ready',
 ];

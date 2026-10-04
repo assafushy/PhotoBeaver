@@ -71,3 +71,37 @@ export function mergeIdsOf(db: LibraryDb, assetId: string): string[] {
     .all()
     .map((r) => r.id);
 }
+
+interface FaceBox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+function parseFaceBox(bboxJson: string | null): FaceBox {
+  return JSON.parse(bboxJson ?? '{"x":0,"y":0,"w":0,"h":0}') as FaceBox;
+}
+
+/**
+ * Faces on an asset with the person each belongs to (viewer info panel).
+ *
+ * @param db - Database.
+ * @param assetId - Asset id.
+ * @returns Faces, left to right.
+ */
+export function facesOf(db: LibraryDb, assetId: string) {
+  return db
+    .select({
+      id: schema.faces.id,
+      bbox: schema.faces.bboxJson,
+      personId: schema.faces.personId,
+      personName: schema.people.name,
+    })
+    .from(schema.faces)
+    .leftJoin(schema.people, eq(schema.people.id, schema.faces.personId))
+    .where(eq(schema.faces.assetId, assetId))
+    .all()
+    .map((row) => ({ ...row, bbox: parseFaceBox(row.bbox) }))
+    .sort((a, b) => a.bbox.x - b.bbox.x);
+}

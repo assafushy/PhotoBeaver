@@ -18,6 +18,7 @@ export interface PbEvents {
   'library.changed': Record<string, never>;
   'sources.changed': Record<string, never>;
   'plugins.changed': Record<string, never>;
+  'people.changed': Record<string, never>;
   'sync.progress': z.infer<typeof syncProgressEventSchema>;
   'thumbs.ready': { items: ThumbUpdate[] };
 }

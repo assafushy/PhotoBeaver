@@ -15,6 +15,7 @@ import {
   openExternalSchema,
   progressParamsSchema,
   secretSetSchema,
+  statusParamsSchema,
   storageKeySchema,
   storageSetSchema,
   validatorOf,
@@ -30,6 +31,7 @@ export interface CoreHandlerDeps {
   storage: PluginStorage;
   pluginLog: CoreLog;
   settings: () => Promise<Record<string, unknown>>;
+  status: (text: string | null) => void;
 }
 
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
@@ -70,8 +72,17 @@ function registerStorageCalls(peer: RpcPeer, { storage }: CoreHandlerDeps): void
   );
 }
 
+function registerStatusCall(peer: RpcPeer, deps: CoreHandlerDeps): void {
+  peer.onNotification(
+    CORE_METHODS.status,
+    (raw) => deps.status((raw as { text: string | null }).text),
+    validatorOf(statusParamsSchema),
+  );
+}
+
 function registerPluginCalls(peer: RpcPeer, deps: CoreHandlerDeps): void {
   registerLogCall(peer, deps);
+  registerStatusCall(peer, deps);
   registerStorageCalls(peer, deps);
   peer.handle(CORE_METHODS.settings, () => deps.settings());
 }

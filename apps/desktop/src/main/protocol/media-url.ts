@@ -5,7 +5,9 @@ export const PB_MEDIA_SCHEME = 'pb-media';
 const ULID = /^[0-9A-HJKMNP-TV-Z]{26}$/;
 
 export type MediaRequest =
-  { kind: 'thumb'; assetId: string; size: ThumbSize } | { kind: 'original'; assetId: string };
+  | { kind: 'thumb'; assetId: string; size: ThumbSize }
+  | { kind: 'original'; assetId: string }
+  | { kind: 'face'; faceId: string };
 
 /**
  * Parses and validates a `pb-media://` URL. Anything unexpected is rejected, so
@@ -25,6 +27,7 @@ export function parseMediaUrl(url: string): MediaRequest | null {
   const parts = parsed.pathname.split('/').filter(Boolean);
   const assetId = (parts[0] ?? '').toUpperCase();
   if (!ULID.test(assetId)) return null;
+  if (parsed.hostname === 'face' && parts.length === 1) return { kind: 'face', faceId: assetId };
   if (parsed.hostname === 'original' && parts.length === 1) return { kind: 'original', assetId };
   const size = Number(parts[1]);
   if (parsed.hostname === 'thumb' && parts.length === 2 && isThumbSize(size))

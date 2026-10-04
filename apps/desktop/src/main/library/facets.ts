@@ -3,7 +3,7 @@ import type { GeoPoints, LibraryFacets, LibraryFilter } from '@photobeaver/share
 import { and, count, desc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import { filterCondition } from './library-filter';
 
-const { assets, instances, sources, tags, assetTags } = schema;
+const { assets, instances, sources, tags, assetTags, people, faces } = schema;
 export const GEO_POINT_LIMIT = 200_000;
 const TAG_FACET_LIMIT = 50;
 
@@ -33,9 +33,25 @@ function tagFacets(db: LibraryDb, kinds: ('place' | 'auto' | 'user')[]): Library
     .all();
 }
 
+function peopleFacets(db: LibraryDb): LibraryFacets['people'] {
+  return db
+    .select({
+      id: people.id,
+      name: people.name,
+      count: sql<number>`count(DISTINCT ${faces.assetId})`,
+    })
+    .from(people)
+    .innerJoin(faces, eq(faces.personId, people.id))
+    .where(isNotNull(people.name))
+    .groupBy(people.id)
+    .orderBy(people.name)
+    .all()
+    .map((row) => ({ ...row, name: row.name ?? '' }));
+}
+
 /**
  * Filter choices with counts for the search chips (SPEC 8.1 #3): sources,
- * places and tags.
+ * places, tags and named people.
  *
  * @param db - Library database.
  * @returns Facets.
@@ -45,6 +61,7 @@ export function libraryFacets(db: LibraryDb): LibraryFacets {
     sources: sourceFacets(db),
     places: tagFacets(db, ['place']),
     tags: tagFacets(db, ['auto', 'user']),
+    people: peopleFacets(db),
   };
 }
 

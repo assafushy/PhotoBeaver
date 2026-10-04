@@ -16,6 +16,7 @@ import { createEnrichContext, type EnrichContextDeps } from './enrich-context';
 import type { EnrichScheduler } from './enrich-scheduler';
 import type { EnricherRegistry } from './enricher-registry';
 import type { Finalizer } from './finalizer';
+import type { FaceStore } from '../faces/face-store';
 import { storeSuggestions } from './identity';
 import type { MergeService } from './merge-service';
 import type { EnricherEntry } from './types';
@@ -30,6 +31,8 @@ export interface EnrichRunnerDeps {
   context: EnrichContextDeps;
   events: EventSink;
   logger: CoreLog;
+  faces: FaceStore;
+  onFacesChanged(): void;
   clock?: Clock;
 }
 
@@ -105,6 +108,7 @@ export class EnrichRunner {
     const canMerge = entry.manifest.permissions.assets === 'merge';
     applyEnrichmentResult(this.applyContext(entry, assetId, canMerge), result);
     this.deps.scheduler.recordRun(assetId, entry, 'done');
+    if (result.faces) this.deps.onFacesChanged();
     if (canMerge) this.applyIdentityRequests(entry, assetId, result);
     this.deps.events.emit('library.changed', {});
   }
@@ -128,6 +132,7 @@ export class EnrichRunner {
       rank: entry.manifest.enricher.produces.includes('exif') ? 'exif' : 'enricher',
       canMerge,
       now: this.now(),
+      faces: this.deps.faces,
     };
   }
 

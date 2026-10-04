@@ -7,6 +7,7 @@ export interface PluginHandlerDeps {
   developerMode: DeveloperMode;
   pickPackage(): Promise<string | null>;
   pickDirectory(): Promise<string | null>;
+  openExternal(url: string): Promise<void>;
 }
 
 function registerLifecycle(registry: IpcRegistry, { plugins }: PluginHandlerDeps): void {
@@ -25,6 +26,14 @@ function registerLifecycle(registry: IpcRegistry, { plugins }: PluginHandlerDeps
     'plugins.restoreDefaults',
     (_input, ctx) => (plugins.restoreDefaults(ctx.user.id), null),
   );
+}
+
+function registerNotice(registry: IpcRegistry, { plugins, openExternal }: PluginHandlerDeps): void {
+  registry.handle('plugins.openNotice', async ({ id }) => {
+    const url = plugins.summary(id).enableNotice?.url;
+    if (url?.startsWith('https://')) await openExternal(url);
+    return null;
+  });
 }
 
 function registerSettings(registry: IpcRegistry, { plugins }: PluginHandlerDeps): void {
@@ -73,6 +82,7 @@ function registerDeveloper(registry: IpcRegistry, deps: PluginHandlerDeps): void
 export function registerPluginHandlers(registry: IpcRegistry, deps: PluginHandlerDeps): void {
   registerLifecycle(registry, deps);
   registerSettings(registry, deps);
+  registerNotice(registry, deps);
   registerInstall(registry, deps);
   registerDeveloper(registry, deps);
 }

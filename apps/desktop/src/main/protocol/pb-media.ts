@@ -8,6 +8,7 @@ import { protocol } from 'electron';
 import type { Core } from '../core/core';
 import { PRIORITY } from '../core/jobs/job-types';
 import { thumbnailDedupeKey } from '../core/sync/batch-writer';
+import { faceCrop } from '../core/faces/face-crop';
 import { thumbPath, type ThumbSize } from '../core/thumbnails/thumb-paths';
 import { parseMediaUrl, PB_MEDIA_SCHEME } from './media-url';
 import { parseRange } from './range';
@@ -63,6 +64,14 @@ async function serveThumb(
   return status(404);
 }
 
+async function serveFace(deps: MediaProtocolDeps, faceId: string): Promise<Response> {
+  const bytes = await faceCrop(deps.db, deps.thumbsDir, faceId);
+  if (!bytes) return status(404);
+  return new Response(new Uint8Array(bytes), {
+    headers: { 'Content-Type': 'image/webp', 'Cache-Control': 'max-age=3600' },
+  });
+}
+
 function rangedResponse(
   file: string,
   size: number,
@@ -105,11 +114,12 @@ async function handle(deps: MediaProtocolDeps, request: Request): Promise<Respon
   if (!media) return status(400);
   if (!deps.currentUser().permissions.includes('assets.view')) return status(403);
   if (media.kind === 'thumb') return serveThumb(deps, media.assetId, media.size);
+  if (media.kind === 'face') return serveFace(deps, media.faceId);
   return serveOriginal(deps, media.assetId, request);
 }
 
 /**
- * Serves thumbnails and originals to the renderer (SPEC 8.1). Every request is
+ * Serves thumbnails, originals and face crops to the renderer (SPEC 8.1). Every request is
  * validated and checked against the session. A missing thumbnail is queued at UI
  * priority and answered with 404; the renderer retries on `thumbs.ready`.
  *

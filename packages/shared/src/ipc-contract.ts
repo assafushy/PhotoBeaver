@@ -40,6 +40,7 @@ export const libraryFilterSchema = z.object({
   sourceIds: z.array(z.string()).max(100).optional(),
   mediaTypes: z.array(z.enum(['image', 'video'])).optional(),
   tagIds: z.array(z.string()).max(20).optional(),
+  personIds: z.array(z.string()).max(20).optional(),
   favoritesOnly: z.boolean().optional(),
   multiSource: z.boolean().optional(),
 });
@@ -56,6 +57,7 @@ export const libraryFacetsSchema = z.object({
   sources: z.array(facetSchema),
   places: z.array(facetSchema),
   tags: z.array(facetSchema),
+  people: z.array(facetSchema),
 });
 
 export const geoPointsSchema = z.object({
@@ -141,6 +143,14 @@ export const assetDetailSchema = z.object({
   tags: z.array(z.object({ name: z.string(), kind: z.enum(['user', 'auto', 'place']) })),
   enrichments: z.array(z.object({ pluginId: z.string(), data: z.record(z.string(), z.unknown()) })),
   mergeIds: z.array(z.string()),
+  faces: z.array(
+    z.object({
+      id: z.string(),
+      bbox: z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() }),
+      personId: z.string().nullable(),
+      personName: z.string().nullable(),
+    }),
+  ),
 });
 
 export const pluginPermissionsSchema = z.object({
@@ -173,6 +183,11 @@ export const pluginSummarySchema = z.object({
   sourceCount: z.number().int(),
   devPath: z.string().nullable(),
   queueSize: z.number().int(),
+  activity: z.string().nullable(),
+  enableNotice: z
+    .object({ title: z.string(), body: z.string(), url: z.string().optional() })
+    .nullable(),
+  produces: z.array(z.string()),
   hasSettings: z.boolean(),
 });
 
@@ -223,6 +238,26 @@ export const mergeRecordSchema = z.object({
   survivingAssetId: z.string(),
   mergedBy: z.string(),
   createdAt: z.number().nullable(),
+});
+
+export const personSummarySchema = z.object({
+  id: z.string(),
+  name: z.string().nullable(),
+  faceCount: z.number().int(),
+  assetCount: z.number().int(),
+  coverFaceId: z.string().nullable(),
+});
+
+export const personFacesPageSchema = z.object({
+  items: z.array(
+    z.object({
+      id: z.string(),
+      assetId: z.string(),
+      bbox: z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() }),
+      assignedBy: z.enum(['user', 'auto']),
+    }),
+  ),
+  nextCursor: z.string().nullable(),
 });
 
 export const appSettingsSchema = z.object({
@@ -372,6 +407,48 @@ export const IPC_CONTRACT = {
     output: nothing,
   }),
   'plugins.rerun': channel({ requires: 'sources.sync', input: idInput, output: nothing }),
+  'plugins.openNotice': channel({ requires: 'plugins.manage', input: idInput, output: nothing }),
+  'people.list': channel({
+    requires: 'assets.view',
+    input: emptyInput,
+    output: z.array(personSummarySchema),
+  }),
+  'people.faces': channel({
+    requires: 'assets.view',
+    input: z.object({ id: z.string(), after: z.string().nullable().default(null) }),
+    output: personFacesPageSchema,
+  }),
+  'people.rename': channel({
+    requires: 'people.edit',
+    input: z.object({ id: z.string(), name: z.string().max(200) }),
+    output: nothing,
+  }),
+  'people.merge': channel({
+    requires: 'people.edit',
+    input: z.object({ fromId: z.string(), intoId: z.string() }),
+    output: nothing,
+  }),
+  'people.moveFaces': channel({
+    requires: 'people.edit',
+    input: z.object({
+      faceIds: z.array(z.string()).min(1).max(500),
+      target: z.union([
+        z.object({ personId: z.string() }),
+        z.object({ newPerson: z.literal(true) }),
+      ]),
+    }),
+    output: z.object({ personId: z.string() }),
+  }),
+  'people.rejectFace': channel({
+    requires: 'people.edit',
+    input: z.object({ faceId: z.string() }),
+    output: nothing,
+  }),
+  'people.setCover': channel({
+    requires: 'people.edit',
+    input: z.object({ personId: z.string(), faceId: z.string() }),
+    output: nothing,
+  }),
   'duplicates.list': channel({
     requires: 'assets.view',
     input: emptyInput,
@@ -425,6 +502,8 @@ export type StagedPackageSummary = z.infer<typeof stagedPackageSchema>;
 export type PluginStatus = (typeof PLUGIN_STATUSES)[number];
 export type DuplicateGroup = z.infer<typeof duplicateGroupSchema>;
 export type MergeRecord = z.infer<typeof mergeRecordSchema>;
+export type PersonSummary = z.infer<typeof personSummarySchema>;
+export type PersonFacesPage = z.infer<typeof personFacesPageSchema>;
 export type AppSettings = z.infer<typeof appSettingsSchema>;
 export type PluginSettingsView = z.infer<typeof pluginSettingsSchema>;
 

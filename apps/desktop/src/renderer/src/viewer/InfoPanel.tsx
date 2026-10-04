@@ -4,7 +4,15 @@ import { useTranslation } from 'react-i18next';
 import { formatBytes } from '../lib/format-bytes';
 import { usePbEvent } from '../lib/use-pb-event';
 import { formatFull } from '../library/dates';
-import { CameraRow, EnrichmentsRow, PlaceRow, Row, TagsRow, UndoMergeButton } from './InfoExtras';
+import {
+  CameraRow,
+  EnrichmentsRow,
+  PeopleRow,
+  PlaceRow,
+  Row,
+  TagsRow,
+  UndoMergeButton,
+} from './InfoExtras';
 
 type Instance = AssetDetail['instances'][number];
 
@@ -89,6 +97,7 @@ function Details({ asset }: { asset: AssetDetail }) {
         <Row label={t('viewer.locations')}>
           <Instances asset={asset} />
         </Row>
+        <PeopleRow asset={asset} />
         <TagsRow asset={asset} />
         <EnrichmentsRow asset={asset} />
       </dl>

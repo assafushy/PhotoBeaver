@@ -125,22 +125,35 @@ function TagSelect({ kind, facets }: { kind: 'place' | 'tag'; facets: Facet[] })
   );
 }
 
-function FacetSelects() {
+interface ListSelectProps {
+  field: 'personIds' | 'sourceIds';
+  kind: 'person' | 'source';
+  facets: Facet[];
+}
+
+function ListSelect({ field, kind, facets }: ListSelectProps) {
   const { t } = useTranslation();
   const { filter, setList } = useFilterStore();
+  return (
+    <FacetSelect
+      label={t(`search.${kind}`)}
+      facets={facets}
+      selected={filter[field]}
+      onSelect={(ids) => setList(field, ids)}
+      testId={`filter-${kind}`}
+    />
+  );
+}
+
+function FacetSelects() {
   const { data } = useFacets();
   if (!data) return null;
   return (
     <>
       <TagSelect kind="place" facets={data.places} />
       <TagSelect kind="tag" facets={data.tags} />
-      <FacetSelect
-        label={t('search.source')}
-        facets={data.sources}
-        selected={filter.sourceIds}
-        onSelect={(ids) => setList('sourceIds', ids)}
-        testId="filter-source"
-      />
+      <ListSelect field="personIds" kind="person" facets={data.people} />
+      <ListSelect field="sourceIds" kind="source" facets={data.sources} />
     </>
   );
 }

@@ -2,6 +2,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { DuplicatesPage } from './duplicates/DuplicatesPage';
 import { Shell } from './layout/Shell';
+import { PeoplePage } from './people/PeoplePage';
+import { PersonPage } from './people/PersonPage';
 import { LibraryPage } from './library/LibraryPage';
 import { MapPage } from './map/MapPage';
 import { PluginsPage } from './plugins/PluginsPage';
@@ -27,6 +29,8 @@ function shellRoutes() {
       </Route>
       <Route path="map" element={<MapPage />} />
       <Route path="duplicates" element={<DuplicatesPage />} />
+      <Route path="people" element={<PeoplePage />} />
+      <Route path="people/:personId" element={<PersonPage />} />
       <Route path="sources" element={<SourcesPage />} />
       <Route path="plugins" element={<PluginsPage />} />
       {PLACEHOLDER_ROUTES.map((r) => (

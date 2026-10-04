@@ -54,6 +54,7 @@ export function fakeSyncContext(
       refresh: async () => ({ accessToken: '' }),
     },
     ui: { pickDirectory: async () => null, notify: noop, openExternal: async () => undefined },
+    status: noop,
     reportProgress: noop,
     isKnown: async (ids) =>
       Object.fromEntries(ids.filter((id) => known[id]).map((id) => [id, known[id]!])),

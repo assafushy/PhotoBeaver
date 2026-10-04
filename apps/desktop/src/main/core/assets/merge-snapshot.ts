@@ -1,3 +1,4 @@
+import type { FaceSnapshot } from '../faces/merge-faces';
 import { schema, type LibraryDb } from '@photobeaver/db';
 import { eq } from 'drizzle-orm';
 import { pickCapturedAt, type CapturedAt } from './capture-date';
@@ -43,6 +44,7 @@ export interface AddedToSurvivor {
 export interface MergeSnapshot {
   merged: AssetRow;
   mergedMemberships: Memberships;
+  mergedFaces?: FaceSnapshot[];
   added: AddedToSurvivor;
   survivorBefore: MergeableFields;
   survivorAfter: MergeableFields;

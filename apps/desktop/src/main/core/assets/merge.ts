@@ -1,3 +1,5 @@
+import type { FaceStore } from '../faces/face-store';
+import { moveFacesOnMerge, snapshotFaces } from '../faces/merge-faces';
 import { schema, type LibraryDb } from '@photobeaver/db';
 import { and, eq, isNotNull, or } from 'drizzle-orm';
 import { ulid } from 'ulid';
@@ -77,14 +79,15 @@ function copyLinks(db: LibraryDb, snapshot: MergeSnapshot, survivorId: string): 
   copyPluginData(db, snapshot, survivorId);
 }
 
-function moveInstances(db: LibraryDb, fromId: string, toId: string): string[] {
+function moveInstances(db: LibraryDb, fromId: string, toId: string, store?: FaceStore): string[] {
   const moved = db
     .update(instances)
     .set({ assetId: toId })
     .where(eq(instances.assetId, fromId))
     .returning({ id: instances.id })
     .all();
-  db.update(faces).set({ assetId: toId }).where(eq(faces.assetId, fromId)).run();
+  if (store) moveFacesOnMerge(db, store, fromId, toId);
+  else db.update(faces).set({ assetId: toId }).where(eq(faces.assetId, fromId)).run();
   return moved.map((row) => row.id);
 }
 
@@ -151,7 +154,7 @@ export function mergeAssets(
   assetB: string,
   mergedBy: string,
   now: number,
-  options: { survivorId?: string } = {},
+  options: { survivorId?: string; faces?: FaceStore } = {},
 ): MergeResult {
   if (assetA === assetB) throw new Error('Cannot merge an asset with itself');
   return db.transaction((txRaw) => {
@@ -162,7 +165,8 @@ export function mergeAssets(
       options.survivorId,
     );
     const snapshot = buildSnapshot(tx, survivor, merged);
-    const movedIds = moveInstances(tx, merged.id, survivor.id);
+    if (options.faces) snapshot.mergedFaces = snapshotFaces(tx, options.faces, merged.id);
+    const movedIds = moveInstances(tx, merged.id, survivor.id, options.faces);
     const record: MergeRecord = { survivor, merged, snapshot, movedIds, mergedBy };
     applyToSurvivor(tx, record, now);
     const mergeId = recordMerge(tx, record, now);

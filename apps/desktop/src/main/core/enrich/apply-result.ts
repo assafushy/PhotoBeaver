@@ -1,3 +1,4 @@
+import type { FaceStore } from '../faces/face-store';
 import { schema, type LibraryDb } from '@photobeaver/db';
 import type { EnrichmentResultPayload } from '@photobeaver/shared/rpc';
 import { and, eq } from 'drizzle-orm';
@@ -6,7 +7,7 @@ import { pickCapturedAt, type CapturedAt } from '../assets/capture-date';
 import { pickLocation, type Located } from '../assets/location';
 import { refreshSearchText, SEARCH_TEXT_KEY } from './search-text';
 
-const { assets, enrichments, tags, assetTags, faces, assetIdentity } = schema;
+const { assets, enrichments, tags, assetTags, assetIdentity } = schema;
 
 type AssetRow = typeof assets.$inferSelect;
 type Rank = 'exif' | 'enricher';
@@ -19,6 +20,7 @@ export interface ApplyContext {
   rank: Rank;
   canMerge: boolean;
   now: number;
+  faces: FaceStore;
 }
 
 function replaceData(ctx: ApplyContext, result: EnrichmentResultPayload): void {
@@ -113,22 +115,7 @@ function applyCoreFields(ctx: ApplyContext, result: EnrichmentResultPayload): vo
 
 function replaceFaces(ctx: ApplyContext, result: EnrichmentResultPayload): void {
   if (!result.faces) return;
-  const { db, assetId, pluginId } = ctx;
-  db.delete(faces)
-    .where(and(eq(faces.assetId, assetId), eq(faces.pluginId, pluginId)))
-    .run();
-  for (const face of result.faces) {
-    db.insert(faces)
-      .values({
-        id: ulid(),
-        assetId,
-        pluginId,
-        bboxJson: JSON.stringify(face.bbox),
-        confidence: face.confidence,
-        assignedBy: 'auto',
-      })
-      .run();
-  }
+  ctx.faces.sync(ctx.db, { assetId: ctx.assetId, pluginId: ctx.pluginId }, result.faces);
 }
 
 function replaceIdentity(ctx: ApplyContext, keys: readonly string[]): void {

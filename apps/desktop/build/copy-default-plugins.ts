@@ -15,6 +15,7 @@ const DEFAULT_PLUGINS = [
   'connector-google-photos',
   'connector-facebook-export',
   'connector-instagram-export',
+  'enricher-faces',
 ];
 const SHIPPED_ENTRIES = ['photobeaver-plugin.json', 'dist', 'assets', 'README.md', 'LICENSE'];
 

@@ -26,7 +26,7 @@ export interface PluginManagerDeps {
   watches: WatchManager;
   events: EventSink;
   logger: CoreLog;
-  loader: Omit<LoaderDeps, 'onStarted' | 'onCrashed' | 'store'>;
+  loader: Omit<LoaderDeps, 'onStarted' | 'onCrashed' | 'onActivity' | 'store'>;
   defaultsDir: string;
   logsDir: string;
   removeSources(pluginId: string, userId: string): Promise<void>;
@@ -52,6 +52,7 @@ interface InstallOptions {
 export class PluginManager {
   private readonly loaded = new Map<string, LoadedPlugin>();
   private readonly errors = new Map<string, string>();
+  private readonly activities = new Map<string, string>();
   private readonly staged = new Map<string, StagedPackage>();
   private sweepTimer: NodeJS.Timeout | null = null;
 
@@ -422,7 +423,15 @@ export class PluginManager {
       store: this.deps.store,
       onStarted: (id) => void this.deps.watches.refreshPlugin(id).catch(() => undefined),
       onCrashed: (id, delay) => this.onCrashed(id, delay),
+      onActivity: (id, text) => this.setActivity(id, text),
     };
+  }
+
+  private setActivity(id: string, text: string | null): void {
+    if (this.activities.get(id) === (text ?? undefined)) return;
+    if (text === null) this.activities.delete(id);
+    else this.activities.set(id, text);
+    this.deps.events.emit('plugins.changed', {});
   }
 
   private onCrashed(id: string, restartInMs: number | null): void {
@@ -451,6 +460,7 @@ export class PluginManager {
       error: this.errors.get(row.id),
       isDefault,
       queueSize: this.deps.queueSize(row.id),
+      activity: this.activities.get(row.id) ?? null,
       sourceCount,
     });
   }

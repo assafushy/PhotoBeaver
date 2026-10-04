@@ -15,6 +15,7 @@ asarUnpack:
   - '**/node_modules/sharp/**'
   - '**/node_modules/@img/**'
   - '**/node_modules/ffmpeg-static/**'
+  - '**/node_modules/sqlite-vec*/**'
 npmRebuild: false
 mac:
   category: public.app-category.photography

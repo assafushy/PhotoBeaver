@@ -11,6 +11,7 @@ export interface SummaryInput {
   isDefault: boolean;
   sourceCount: number;
   queueSize: number;
+  activity: string | null;
 }
 
 function statusOf(input: SummaryInput): PluginSummary['status'] {
@@ -40,6 +41,16 @@ function hasSettings(row: PluginRow, manifest: Partial<PluginManifest>): boolean
   return settingsSchemaOf({ ...manifest, type: row.type }) !== null;
 }
 
+function identityOf(row: PluginRow, manifest: Partial<PluginManifest>) {
+  return {
+    id: row.id,
+    name: manifest.name ?? row.id,
+    version: row.version,
+    type: row.type,
+    description: manifest.description ?? '',
+  };
+}
+
 /**
  * What the Plugins screen shows for one plugin.
  *
@@ -50,11 +61,7 @@ export function pluginSummary(input: SummaryInput): PluginSummary {
   const { row, loaded } = input;
   const manifest = loaded?.manifest ?? storedManifest(row);
   return {
-    id: row.id,
-    name: manifest.name ?? row.id,
-    version: row.version,
-    type: row.type,
-    description: manifest.description ?? '',
+    ...identityOf(row, manifest),
     enabled: row.enabled === 1,
     status: statusOf(input),
     error: input.error ?? null,
@@ -66,6 +73,9 @@ export function pluginSummary(input: SummaryInput): PluginSummary {
     devPath: row.installSource === 'dev' ? row.installPath : null,
     queueSize: input.queueSize,
     hasSettings: hasSettings(row, manifest),
+    activity: input.activity,
+    enableNotice: manifest.enableNotice ?? null,
+    produces: manifest.enricher?.produces ?? [],
   };
 }
 

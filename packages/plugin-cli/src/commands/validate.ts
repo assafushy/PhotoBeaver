@@ -4,11 +4,12 @@ import { pathToFileURL } from 'node:url';
 import { isApiVersionSupported, type PluginManifest } from '@photobeaver/shared/manifest';
 import type { CliArgs } from '../args';
 import type { Output } from '../output';
+import { checkNativeDependencies } from '../native-check';
 import { readManifest } from '../project';
 import { checkExportShape } from '../shape';
 
 export type ValidateResult =
-  { ok: true; manifest: PluginManifest } | { ok: false; errors: string[] };
+  { ok: true; manifest: PluginManifest; warnings: string[] } | { ok: false; errors: string[] };
 
 function apiVersionErrors(manifest: PluginManifest): string[] {
   if (isApiVersionSupported(manifest.apiVersion)) return [];
@@ -30,16 +31,34 @@ async function mainErrors(dir: string, manifest: PluginManifest): Promise<string
 }
 
 /**
- * Validates a plugin project: manifest schema, API version, and the built main's exports.
+ * Validates a plugin project: manifest schema, API version, native dependencies against
+ * `permissions.nativeModules`, and the built main's exports.
  *
  * @param dir - Plugin project folder.
- * @returns The manifest when valid, or readable errors.
+ * @returns The manifest and any warnings when valid, or readable errors.
  */
 export async function validateProject(dir: string): Promise<ValidateResult> {
   const read = await readManifest(dir);
   if (!read.ok) return read;
-  const errors = [...apiVersionErrors(read.manifest), ...(await mainErrors(dir, read.manifest))];
-  return errors.length > 0 ? { ok: false, errors } : { ok: true, manifest: read.manifest };
+  const { manifest } = read;
+  const native = checkNativeDependencies(dir, manifest);
+  const errors = [
+    ...apiVersionErrors(manifest),
+    ...native.errors,
+    ...(await mainErrors(dir, manifest)),
+  ];
+  if (errors.length > 0) return { ok: false, errors };
+  return { ok: true, manifest, warnings: native.warnings };
+}
+
+/**
+ * Prints warnings, one per line.
+ *
+ * @param out - CLI output.
+ * @param warnings - Readable warnings.
+ */
+export function reportWarnings(out: Output, warnings: string[]): void {
+  for (const warning of warnings) out.error(`Warning: ${warning}`);
 }
 
 /**
@@ -67,6 +86,7 @@ export async function runValidate(args: CliArgs, out: Output): Promise<number> {
     out.error('Plugin is not valid:');
     return reportErrors(out, result.errors);
   }
+  reportWarnings(out, result.warnings);
   out.info(`Valid: ${result.manifest.id}@${result.manifest.version} (${result.manifest.type})`);
   return 0;
 }

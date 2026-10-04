@@ -32,6 +32,26 @@ jobs:
 
       - run: pnpm typecheck
 
+      - name: Cache face models (real-model test, Ubuntu only)
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/face-models
+          key: insightface-buffalo_l-80ffe37d8a5940d59a7384c201a2a38d4741f2f3c51eef46ebb28218a7b0ca2f
+
+      - name: Download face models (Ubuntu only)
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          dir="$RUNNER_TEMP/face-models"
+          if [ ! -f "$dir/w600k_r50.onnx" ]; then
+            mkdir -p "$dir" && cd "$dir"
+            curl -sSL -o buffalo_l.zip https://github.com/deepinsight/insightface/releases/download/v0.7/buffalo_l.zip
+            echo "80ffe37d8a5940d59a7384c201a2a38d4741f2f3c51eef46ebb28218a7b0ca2f  buffalo_l.zip" | sha256sum -c -
+            unzip -q buffalo_l.zip det_10g.onnx w600k_r50.onnx && rm buffalo_l.zip
+          fi
+          echo "PB_FACE_MODELS_DIR=$dir" >> "$GITHUB_ENV"
+
       - name: Test (two packages at a time, so CPU-heavy suites keep their timeouts)
         run: pnpm exec turbo run test --concurrency=2
 

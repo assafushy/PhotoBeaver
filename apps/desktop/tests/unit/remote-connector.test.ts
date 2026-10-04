@@ -40,6 +40,7 @@ function setup(plugin: ConnectorPlugin<unknown> = localConnector as never) {
         },
         pluginLog: silentCoreLog,
         settings: async () => ({}),
+        status: () => undefined,
       }),
     onStarted: () => undefined,
     onCrashed: () => undefined,
@@ -74,6 +75,7 @@ function syncCtx(
       refresh: async () => ({ accessToken: '' }),
     },
     ui: { pickDirectory: async () => null, notify: noop, openExternal: async () => undefined },
+    status: noop,
     reportProgress: noop,
     isKnown: async (ids) => (
       asked.push(ids),

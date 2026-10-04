@@ -28,6 +28,7 @@ export interface FakeEnrichOptions {
   identity?: Map<string, Set<string>>;
   blockedPairs?: [string, string][];
   dataDir?: string;
+  fetch?: typeof fetch;
 }
 
 export interface EnrichRecorder extends FakeRecorder {
@@ -107,9 +108,10 @@ export function createFakeEnrichContext<Settings>(
     log: recordingLogger(recorded.logs),
     storage: memoryStorage(recorded.storage),
     dataDir: options.dataDir ?? mkdtempSync(path.join(tmpdir(), 'pb-enrich-')),
-    fetch: globalThis.fetch,
+    fetch: options.fetch ?? globalThis.fetch,
     settings: async <T>() => (options.settings ?? {}) as T,
     signal: new AbortController().signal,
+    status: (text) => void recorded.statuses.push(text),
     getInput: async (asset, request) => (
       recorded.inputs.push({ assetId: asset.id, options: request }),
       pickInput(asset.id, options, request)

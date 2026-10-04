@@ -55,6 +55,15 @@ const api: PbApi = {
     merge: (id, keepAssetId) => invoke('duplicates.merge', { id, keepAssetId }),
     dismiss: byId('duplicates.dismiss'),
   },
+  people: {
+    list: () => invoke('people.list'),
+    faces: (id, after = null) => invoke('people.faces', { id, after }),
+    rename: (id, name) => invoke('people.rename', { id, name }),
+    merge: (fromId, intoId) => invoke('people.merge', { fromId, intoId }),
+    moveFaces: (faceIds, target) => invoke('people.moveFaces', { faceIds, target }),
+    rejectFace: (faceId) => invoke('people.rejectFace', { faceId }),
+    setCover: (personId, faceId) => invoke('people.setCover', { personId, faceId }),
+  },
   merges: { recent: () => invoke('merges.recent'), undo: byId('merges.undo') },
   settings: { get: () => invoke('settings.get'), set: (patch) => invoke('settings.set', patch) },
   assets: { get: byId('assets.get'), openInSource: byId('assets.openInSource') },
@@ -88,6 +97,7 @@ const api: PbApi = {
     getSettings: byId('plugins.getSettings'),
     setSettings: (id, values) => invoke('plugins.setSettings', { id, values }),
     rerun: byId('plugins.rerun'),
+    openNotice: byId('plugins.openNotice'),
   },
   events: { on },
 };

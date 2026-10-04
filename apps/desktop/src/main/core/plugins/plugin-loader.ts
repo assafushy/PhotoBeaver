@@ -23,6 +23,7 @@ export interface LoaderDeps {
   settings(manifest: PluginManifest): Record<string, unknown>;
   onStarted(pluginId: string): void;
   onCrashed(pluginId: string, restartInMs: number | null): void;
+  onActivity(pluginId: string, text: string | null): void;
   clock?: Clock;
 }
 
@@ -75,6 +76,7 @@ function createHandle(deps: LoaderDeps, manifest: PluginManifest, installPath: s
         storage: deps.storage(manifest.id),
         pluginLog: log,
         settings: async () => deps.settings(manifest),
+        status: (text) => deps.onActivity(manifest.id, text),
       }),
     onStarted: () => deps.onStarted(manifest.id),
     onCrashed: (delay) => deps.onCrashed(manifest.id, delay),
