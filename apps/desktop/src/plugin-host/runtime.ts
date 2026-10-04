@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import type { ConnectorPlugin } from '@photobeaver/plugin-sdk';
+import type { ConnectorPlugin, EnricherPlugin } from '@photobeaver/plugin-sdk';
 import {
   HOST_METHODS,
   hostInitSchema,
@@ -11,6 +11,7 @@ import {
   type RpcPort,
 } from '@photobeaver/shared/rpc';
 import { registerConnector } from './connector-handlers';
+import { registerEnricher } from './enricher-handlers';
 import type { HostServices } from './context';
 import { FolderGrants, installFilesystemGuard } from './permissions/filesystem';
 import { installNetworkGuard } from './permissions/network';
@@ -25,23 +26,30 @@ export interface RuntimeOptions {
 
 const importModule = (entryUrl: string) => import(entryUrl) as Promise<PluginModule>;
 
-async function loadPlugin(
+async function loadDefaultExport(
   init: HostInit,
   options: RuntimeOptions,
-): Promise<ConnectorPlugin<unknown>> {
+): Promise<Record<string, unknown>> {
   const entry = pathToFileURL(path.join(init.pluginDir, init.main)).href;
   const module = await (options.loadModule ?? importModule)(entry);
-  const plugin = (module.default ?? module) as Partial<ConnectorPlugin<unknown>>;
-  if (
-    typeof plugin.sync !== 'function' ||
-    typeof plugin.setupSource !== 'function' ||
-    typeof plugin.getOriginal !== 'function'
-  ) {
-    throw new Error(
-      'The plugin must default-export a connector with setupSource, sync and getOriginal',
-    );
-  }
-  return plugin as ConnectorPlugin<unknown>;
+  return (module.default ?? module) as Record<string, unknown>;
+}
+
+function hasFunctions(plugin: Record<string, unknown>, names: string[]): boolean {
+  return names.every((name) => typeof plugin[name] === 'function');
+}
+
+function asConnector(plugin: Record<string, unknown>): ConnectorPlugin<unknown> {
+  if (hasFunctions(plugin, ['setupSource', 'sync', 'getOriginal']))
+    return plugin as unknown as ConnectorPlugin<unknown>;
+  throw new Error(
+    'The plugin must default-export a connector with setupSource, sync and getOriginal',
+  );
+}
+
+function asEnricher(plugin: Record<string, unknown>): EnricherPlugin<unknown> {
+  if (hasFunctions(plugin, ['enrich'])) return plugin as unknown as EnricherPlugin<unknown>;
+  throw new Error('The plugin must default-export an enricher with enrich');
 }
 
 function installGuards(
@@ -60,13 +68,36 @@ function installGuards(
   return { fetch: createRateLimitedFetch(guardedFetch, init.rateLimit), grants };
 }
 
-function capabilitiesOf(plugin: ConnectorPlugin<unknown>): HostCapabilities {
+function connectorCapabilities(plugin: ConnectorPlugin<unknown>): HostCapabilities {
   return {
     type: 'connector',
     getThumbnail: Boolean(plugin.getThumbnail),
     testSource: Boolean(plugin.testSource),
     watch: Boolean(plugin.watch),
+    enrichBatch: false,
+    finalize: false,
   };
+}
+
+function enricherCapabilities(plugin: EnricherPlugin<unknown>): HostCapabilities {
+  const flags = { getThumbnail: false, testSource: false, watch: false };
+  return {
+    type: 'enricher',
+    ...flags,
+    enrichBatch: Boolean(plugin.enrichBatch),
+    finalize: Boolean(plugin.finalize),
+  };
+}
+
+function serve(services: HostServices, raw: Record<string, unknown>): HostCapabilities {
+  if (services.init.type === 'enricher') {
+    const enricher = asEnricher(raw);
+    registerEnricher(services, enricher);
+    return enricherCapabilities(enricher);
+  }
+  const connector = asConnector(raw);
+  registerConnector(services, connector);
+  return connectorCapabilities(connector);
 }
 
 async function initialize(
@@ -75,11 +106,11 @@ async function initialize(
   options: RuntimeOptions,
 ): Promise<HostCapabilities> {
   const { fetch, grants } = installGuards(init, options.installGuards ?? true);
-  const plugin = await loadPlugin(init, options);
-  const services: HostServices = { peer, init, fetch, grants };
-  registerConnector(services, plugin);
-  peer.handle(HOST_METHODS.deactivate, async () => void (await plugin.deactivate?.()));
-  return capabilitiesOf(plugin);
+  const raw = await loadDefaultExport(init, options);
+  const capabilities = serve({ peer, init, fetch, grants }, raw);
+  const deactivate = raw.deactivate as (() => Promise<void>) | undefined;
+  peer.handle(HOST_METHODS.deactivate, async () => void (await deactivate?.call(raw)));
+  return capabilities;
 }
 
 /**

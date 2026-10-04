@@ -10,6 +10,9 @@ export const HOST_METHODS = {
   getThumbnail: 'connector.getThumbnail',
   watch: 'connector.watch',
   unwatch: 'connector.unwatch',
+  enrich: 'enricher.enrich',
+  enrichBatch: 'enricher.enrichBatch',
+  finalize: 'enricher.finalize',
 } as const;
 
 export const CORE_METHODS = {
@@ -25,10 +28,16 @@ export const CORE_METHODS = {
   isKnown: 'ctx.sync.isKnown',
   progress: 'ctx.sync.progress',
   watchChange: 'watch.change',
+  getInput: 'ctx.enrich.getInput',
+  findByIdentity: 'ctx.assets.findByIdentity',
+  listIdentity: 'ctx.assets.listIdentity',
+  isMergeBlocked: 'ctx.assets.isMergeBlocked',
+  suggestDuplicates: 'ctx.assets.suggestDuplicates',
 } as const;
 
 export const hostInitSchema = z.object({
   pluginId: z.string(),
+  type: z.enum(['connector', 'enricher']).default('connector'),
   pluginDir: z.string(),
   main: z.string(),
   dataDir: z.string(),
@@ -44,6 +53,8 @@ export const hostCapabilitiesSchema = z.object({
   getThumbnail: z.boolean(),
   testSource: z.boolean(),
   watch: z.boolean(),
+  enrichBatch: z.boolean().default(false),
+  finalize: z.boolean().default(false),
 });
 
 export const sourceCallSchema = z.object({
@@ -119,3 +130,113 @@ export function validatorOf<T>(schema: z.ZodType<T>): (params: unknown) => T {
     return result.data;
   };
 }
+
+const geoPointSchema = z.object({
+  lat: z.number().min(-90).max(90),
+  lon: z.number().min(-180).max(180),
+});
+const contentHashSchema = z.object({ algo: z.string(), value: z.string() });
+
+export const assetViewSchema = z.object({
+  id: z.string(),
+  kind: z.enum(['image', 'video']),
+  mime: z.string().optional(),
+  width: z.number().optional(),
+  height: z.number().optional(),
+  durationMs: z.number().optional(),
+  capturedAt: z.string().optional(),
+  location: geoPointSchema.optional(),
+  instances: z.array(
+    z.object({
+      sourceId: z.string(),
+      filename: z.string().optional(),
+      path: z.string().optional(),
+      caption: z.string().optional(),
+      sizeBytes: z.number().optional(),
+      contentHash: contentHashSchema.optional(),
+    }),
+  ),
+  enrichments: z.record(z.string(), z.record(z.string(), z.unknown())),
+});
+
+const suggestionSchema = z.object({
+  assetIds: z.array(z.string()).min(2).max(50),
+  kind: z.enum(['exact', 'near']),
+  confidence: z.number().min(0).max(1),
+});
+
+export const enrichmentResultSchema = z.object({
+  data: z.record(z.string(), z.unknown()).optional(),
+  tags: z
+    .array(
+      z.object({
+        name: z.string().min(1).max(200),
+        confidence: z.number().min(0).max(1).optional(),
+        kind: z.enum(['auto', 'place']).optional(),
+      }),
+    )
+    .max(500)
+    .optional(),
+  capturedAt: z
+    .string()
+    .refine((v) => !Number.isNaN(Date.parse(v)), 'Invalid date')
+    .optional(),
+  location: geoPointSchema.optional(),
+  dimensions: z
+    .object({
+      width: z.number().int().positive(),
+      height: z.number().int().positive(),
+      durationMs: z.number().nonnegative().optional(),
+    })
+    .optional(),
+  faces: z
+    .array(
+      z.object({
+        bbox: z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() }),
+        confidence: z.number(),
+        embedding: z.array(z.number()).optional(),
+      }),
+    )
+    .max(200)
+    .optional(),
+  searchText: z.string().max(10_000).optional(),
+  identityKeys: z.array(z.string().min(1).max(512)).max(100).optional(),
+  mergeWith: z.array(z.string()).max(50).optional(),
+  suggestDuplicates: z.array(suggestionSchema).max(50).optional(),
+});
+
+export const enrichOutcomeSchema = z.union([
+  z.object({ skipped: z.literal(true) }),
+  z.object({ skipped: z.literal(false), result: z.unknown() }),
+]);
+
+export const enrichCallSchema = z.object({ contextId: z.string(), asset: assetViewSchema });
+export const enrichBatchCallSchema = z.object({
+  contextId: z.string(),
+  assets: z.array(assetViewSchema).max(64),
+});
+export const finalizeCallSchema = z.object({ contextId: z.string() });
+export const getInputParamsSchema = z.object({
+  contextId: z.string(),
+  assetId: z.string(),
+  input: z.enum(['thumbnail', 'original']).optional(),
+  format: z.enum(['png']).optional(),
+});
+export const findByIdentitySchema = z.object({
+  contextId: z.string(),
+  keys: z.array(z.string()).max(1000),
+  excludeAssetId: z.string().optional(),
+});
+export const listIdentitySchema = z.object({
+  contextId: z.string(),
+  prefix: z.string().min(1).max(64),
+  cursor: z.string().optional(),
+});
+export const mergeBlockedSchema = z.object({ contextId: z.string(), a: z.string(), b: z.string() });
+export const suggestDuplicatesSchema = z.object({
+  contextId: z.string(),
+  suggestions: z.array(suggestionSchema).max(500),
+});
+
+export type EnrichOutcome = z.infer<typeof enrichOutcomeSchema>;
+export type EnrichmentResultPayload = z.infer<typeof enrichmentResultSchema>;

@@ -10,6 +10,7 @@ export interface SummaryInput {
   error: string | undefined;
   isDefault: boolean;
   sourceCount: number;
+  queueSize: number;
 }
 
 function statusOf(input: SummaryInput): PluginSummary['status'] {
@@ -25,6 +26,18 @@ function storedManifest(row: PluginRow): Partial<PluginManifest> {
   } catch {
     return {};
   }
+}
+
+function runtimeOf(loaded: LoadedPlugin | undefined) {
+  return {
+    running: loaded?.handle.isRunning ?? false,
+    pid: loaded?.handle.pid ?? null,
+    restarts: loaded?.handle.restarts ?? 0,
+  };
+}
+
+function hasSettings(row: PluginRow, manifest: Partial<PluginManifest>): boolean {
+  return row.type === 'enricher' && Object.keys(manifest.configSchema?.properties ?? {}).length > 0;
 }
 
 /**
@@ -48,11 +61,11 @@ export function pluginSummary(input: SummaryInput): PluginSummary {
     installSource: row.installSource,
     isDefault: input.isDefault,
     permissions: manifest.permissions ?? null,
-    running: loaded?.handle.isRunning ?? false,
-    pid: loaded?.handle.pid ?? null,
-    restarts: loaded?.handle.restarts ?? 0,
+    ...runtimeOf(loaded),
     sourceCount: input.sourceCount,
     devPath: row.installSource === 'dev' ? row.installPath : null,
+    queueSize: input.queueSize,
+    hasSettings: hasSettings(row, manifest),
   };
 }
 

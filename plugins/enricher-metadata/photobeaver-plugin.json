@@ -1,0 +1,28 @@
+{
+  "id": "com.photobeaver.enricher-metadata",
+  "name": "Photo metadata",
+  "version": "0.1.0",
+  "type": "enricher",
+  "apiVersion": "1",
+  "main": "dist/index.js",
+  "description": "Reads capture time, GPS location, camera, lens and size from photo EXIF and from MP4 and MOV video headers.",
+  "author": { "name": "Photo Beaver" },
+  "license": "MIT",
+  "engines": { "photobeaver": ">=0.1.0" },
+  "default": { "enabledOnInstall": true },
+  "permissions": {
+    "network": [],
+    "filesystem": "none",
+    "originals": "read"
+  },
+  "enricher": {
+    "accepts": ["image/*", "video/*"],
+    "input": "original",
+    "dependsOn": [],
+    "produces": ["exif", "location", "dimensions", "enrichment:exif"],
+    "concurrency": 4,
+    "resourceClass": "light",
+    "runOn": ["new", "changed"]
+  },
+  "configSchema": { "type": "object", "properties": {} }
+}

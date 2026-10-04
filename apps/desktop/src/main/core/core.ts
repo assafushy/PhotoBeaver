@@ -21,6 +21,9 @@ import { SourceService } from './sources/source-service';
 import { BatchWriter } from './sync/batch-writer';
 import { SyncRunner } from './sync/sync-runner';
 import { ThumbnailService } from './thumbnails/thumbnail-service';
+import { DuplicatesService } from './enrich/duplicates-service';
+import { EnrichmentSystem } from './enrich/enrichment-system';
+import type { EnricherEntry } from './enrich/types';
 
 export const SYNC_LANE_CONCURRENCY = 3;
 
@@ -45,6 +48,8 @@ export interface CoreOptions {
   pickDirectory: () => Promise<string | null>;
   clock?: Clock;
   syncBatchDelayMs?: number;
+  enrichers?: EnricherEntry[];
+  isOnBattery?: () => boolean;
 }
 
 /**
@@ -61,6 +66,8 @@ export class Core {
   readonly watches: WatchManager;
   readonly sources: SourceService;
   readonly plugins: PluginManager | null;
+  readonly enrichment: EnrichmentSystem;
+  readonly duplicates: DuplicatesService;
   private readonly syncLane: Lane;
   private readonly lanes: Lane[];
   private readonly maintenance: Maintenance;
@@ -71,12 +78,21 @@ export class Core {
     this.queue = new JobQueue(options.library.sqlite, this.clock);
     this.registry = this.createRegistry();
     this.scheduler = new Scheduler(options.library.db, this.queue, this.clock);
-    this.writer = new BatchWriter(options.library.db, this.queue);
     const source = new OriginalSource(options.library.db, this.registry);
     this.originals = new OriginalCache(path.join(options.libraryDir, 'cache', 'originals'), source);
+    this.enrichment = this.createEnrichment();
+    this.duplicates = new DuplicatesService(
+      options.library.db,
+      this.enrichment.merges,
+      options.events,
+      this.clock,
+    );
+    this.writer = new BatchWriter(options.library.db, this.queue, (ids) =>
+      this.enrichment.scheduler.contentChanged(ids),
+    );
     this.thumbnails = this.createThumbnails(source);
     this.syncLane = this.createSyncLane();
-    this.lanes = [this.syncLane, this.createCoreLane()];
+    this.lanes = [this.syncLane, this.createCoreLane(), ...this.enrichment.lanes];
     this.watches = this.createWatches();
     this.sources = this.createSources();
     this.maintenance = this.createMaintenance();
@@ -133,7 +149,10 @@ export class Core {
       cache: this.originals,
       ffmpegPath: this.options.ffmpegPath,
       logger: this.options.logger,
-      onReady: (update) => this.options.events.emit('thumbs.ready', { items: [update] }),
+      onReady: (update) => {
+        this.options.events.emit('thumbs.ready', { items: [update] });
+        this.enrichment.scheduler.thumbnailReady(update.id);
+      },
       clock: this.clock,
     });
   }
@@ -215,8 +234,30 @@ export class Core {
       defaultsDir: plugins.defaultsDir,
       logsDir: plugins.logsDir,
       removeSources,
+      enrichers: this.enrichment.registry,
+      enrichLibrary: (id) => void this.enrichment.scheduler.queueLibrary(id),
+      queueSize: (id) => this.queue.pendingFor('enrich', id),
+      settings: this.enrichment.settings,
       clock: this.clock,
     });
+  }
+
+  private createEnrichment(): EnrichmentSystem {
+    const { library, libraryDir, events, logger } = this.options;
+    const system = new EnrichmentSystem({
+      db: library.db,
+      queue: this.queue,
+      connectors: this.registry,
+      originals: this.originals,
+      thumbsDir: path.join(libraryDir, 'thumbs'),
+      tempDir: path.join(libraryDir, 'cache'),
+      events,
+      logger,
+      clock: this.clock,
+      isOnBattery: this.options.isOnBattery ?? (() => false),
+    });
+    system.addAll(this.options.enrichers ?? []);
+    return system;
   }
 
   private createPluginStore(plugins: PluginSystemOptions): PluginStore {
@@ -235,6 +276,8 @@ export class Core {
       logger: this.options.logger,
       pluginLog: plugins.pluginLog,
       storage: (id: string) => createPluginStorage(db, id),
+      settings: (manifest: { id: string; configSchema: object }) =>
+        this.enrichment.settings.get(manifest.id, manifest.configSchema),
       clock: this.clock,
     };
   }

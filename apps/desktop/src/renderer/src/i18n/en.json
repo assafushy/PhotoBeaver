@@ -4,11 +4,14 @@
   },
   "common": {
     "back": "Back",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "save": "Save"
   },
   "nav": {
     "label": "Main navigation",
     "library": "Library",
+    "map": "Map",
+    "duplicates": "Duplicates",
     "sources": "Sources",
     "plugins": "Plugins",
     "activity": "Activity",
@@ -45,14 +48,22 @@
       "exif": "from the camera",
       "source": "from the source",
       "filename": "from the file name",
-      "mtime": "from the file date"
+      "mtime": "from the file date",
+      "user": "set by you",
+      "enricher": "from a plugin"
     },
     "dimensions": "Dimensions",
     "duration": "Duration",
     "type": "Type",
     "locations": "Locations",
     "openInSource": "Open in source",
-    "missing": "No longer in this source"
+    "missing": "No longer in this source",
+    "place": "Place",
+    "showOnMap": "Show on map",
+    "camera": "Camera",
+    "tags": "Tags",
+    "pluginData": "Plugin data",
+    "undoMerge": "Undo merge"
   },
   "sources": {
     "addSource": "Add source",
@@ -145,6 +156,45 @@
       "oauth": "Signs in to an online account",
       "native": "Runs native code (not limited by Photo Beaver's protections)",
       "gpu": "Uses the graphics card"
-    }
+    },
+    "settings": "Settings",
+    "settingsTitle": "{{name}} settings",
+    "rerun": "Re-run on library",
+    "queued_one": "{{count}} item queued",
+    "queued_other": "{{count}} items queued"
+  },
+  "search": {
+    "label": "Search the library",
+    "placeholder": "Search places, names, tags",
+    "photos": "Photos",
+    "videos": "Videos",
+    "favorites": "Favorites",
+    "multiSource": "In several sources",
+    "place": "Any place",
+    "tag": "Any tag",
+    "source": "Any source",
+    "clear": "Clear filters",
+    "noMatches": "Nothing matches these filters."
+  },
+  "map": {
+    "count_one": "{{count}} photo with a location",
+    "count_other": "{{count}} photos with a location",
+    "truncated": "showing the first 200,000",
+    "unavailable": "The map needs graphics acceleration (WebGL), which is not available on this computer."
+  },
+  "duplicates": {
+    "intro": "Photo Beaver found these possible duplicates. Merge them into one item, or tell it they are different.",
+    "empty": "No duplicates to review.",
+    "keep": "Keep this one",
+    "merge": "Merge",
+    "notDuplicates": "Not duplicates",
+    "kind": {
+      "exact": "Identical files",
+      "near": "Similar photos"
+    },
+    "recent": "Recent merges",
+    "mergedByYou": "Merged by you",
+    "mergedByPlugin": "Merged automatically by {{name}}",
+    "undo": "Undo"
   }
 }

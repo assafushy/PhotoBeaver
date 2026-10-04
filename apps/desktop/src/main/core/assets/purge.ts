@@ -1,10 +1,12 @@
 import { schema, type LibraryDb } from '@photobeaver/db';
 import { and, inArray, isNotNull, lt, sql } from 'drizzle-orm';
+import { removeSearchText } from '../enrich/search-text';
 
 const { assets, instances, jobs } = schema;
 const CHUNK = 500;
 
 function deleteChunk(db: LibraryDb, ids: string[]): string[] {
+  ids.forEach((id) => removeSearchText(db, id));
   db.delete(instances).where(inArray(instances.assetId, ids)).run();
   db.delete(jobs).where(inArray(jobs.assetId, ids)).run();
   return db

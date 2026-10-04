@@ -1,7 +1,7 @@
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import type { ConnectorPlugin } from '@photobeaver/plugin-sdk';
+import type { ConnectorPlugin, EnricherPlugin } from '@photobeaver/plugin-sdk';
 import { createMemoryPortPair, type HostInit } from '@photobeaver/shared/rpc';
 import type { HostLauncher, LaunchedHost } from '../../src/main/core/plugins/host-launcher';
 import { startHostRuntime } from '../../src/plugin-host/runtime';
@@ -14,7 +14,7 @@ export class MemoryLauncher implements HostLauncher {
   launches = 0;
   current: LaunchedHost | null = null;
 
-  constructor(private readonly plugin: ConnectorPlugin<unknown>) {}
+  constructor(private readonly plugin: ConnectorPlugin<unknown> | EnricherPlugin<unknown>) {}
 
   launch(): LaunchedHost {
     const [core, host] = createMemoryPortPair();
@@ -41,10 +41,11 @@ export class MemoryLauncher implements HostLauncher {
  * @param pluginId - Plugin id.
  * @returns Init params with temp folders.
  */
-export function testHostInit(pluginId: string): HostInit {
+export function testHostInit(pluginId: string, type: HostInit['type'] = 'connector'): HostInit {
   const dir = mkdtempSync(path.join(tmpdir(), 'pb-host-'));
   return {
     pluginId,
+    type,
     pluginDir: dir,
     main: 'index.js',
     dataDir: dir,

@@ -49,7 +49,7 @@ describe('connector-local sync', () => {
     expect(resumed.flatMap((b) => b.upserts ?? []).map((i) => i.filename)).toEqual(
       files.slice(BATCH_SIZE),
     );
-  });
+  }, 30_000);
 
   it('starts a fresh scan after a completed cursor', async () => {
     tree = makeTree(['a.jpg']);

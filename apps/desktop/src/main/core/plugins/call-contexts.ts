@@ -1,7 +1,7 @@
-import type { SourceContext, SyncBatch, SyncContext } from '@photobeaver/plugin-sdk';
+import type { EnrichContext, SourceContext, SyncBatch, SyncContext } from '@photobeaver/plugin-sdk';
 import { ulid } from 'ulid';
 
-type AnyContext = SourceContext<unknown> | SyncContext<unknown>;
+type AnyContext = SourceContext<unknown> | SyncContext<unknown> | EnrichContext<unknown>;
 
 /**
  * Maps the `contextId`s sent to a plugin host back to the core-side contexts
@@ -24,10 +24,16 @@ export class CallContexts {
     return { contextId, release: () => void this.contexts.delete(contextId) };
   }
 
-  get(contextId: string): AnyContext {
-    const ctx = this.contexts.get(contextId);
-    if (!ctx) throw new Error('Unknown or expired call context');
-    return ctx;
+  get(contextId: string): SourceContext<unknown> {
+    const ctx = this.contexts.get(contextId) as Partial<SourceContext<unknown>> | undefined;
+    if (!ctx?.ui) throw new Error('Unknown or expired source context');
+    return ctx as SourceContext<unknown>;
+  }
+
+  enrich(contextId: string): EnrichContext<unknown> {
+    const ctx = this.contexts.get(contextId) as Partial<EnrichContext<unknown>> | undefined;
+    if (!ctx?.getInput) throw new Error('Unknown or expired enrich context');
+    return ctx as EnrichContext<unknown>;
   }
 
   sync(contextId: string): SyncContext<unknown> {

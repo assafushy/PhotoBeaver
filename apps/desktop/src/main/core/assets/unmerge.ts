@@ -1,5 +1,6 @@
 import { schema, type LibraryDb } from '@photobeaver/db';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { refreshSearchText } from '../enrich/search-text';
 import { refreshMissing } from './missing';
 import {
   MERGEABLE_FIELDS,
@@ -146,6 +147,8 @@ export function unmergeAssets(
     restoreSurvivorFields(tx, row.survivingAssetId, snapshot, now);
     tx.update(assetMerges).set({ undoneAt: now }).where(eq(assetMerges.id, mergeId)).run();
     refreshMissing(tx, [row.survivingAssetId, row.mergedAssetId], now);
+    refreshSearchText(tx, row.survivingAssetId);
+    refreshSearchText(tx, row.mergedAssetId);
     return { survivingAssetId: row.survivingAssetId, restoredAssetId: row.mergedAssetId };
   });
 }

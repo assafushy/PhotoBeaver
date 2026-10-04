@@ -3,6 +3,7 @@ import { useMutation } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { ErrorText } from '../components/ErrorText';
 import { buttonStyles } from '../components/Modal';
+import { RerunButton, SettingsButton } from './EnricherActions';
 import { PermissionList } from './PermissionList';
 import { LogsButton, UninstallButton } from './PluginDialogs';
 import { useRefreshPlugins } from './use-plugins';
@@ -98,6 +99,7 @@ function Details({ plugin }: { plugin: PluginSummary }) {
       {plugin.permissions && <PermissionList permissions={plugin.permissions} />}
       <p className="text-xs text-neutral-500">
         {t(plugin.running ? 'plugins.running' : 'plugins.stopped', { count: plugin.restarts })}
+        {plugin.queueSize > 0 ? ` · ${t('plugins.queued', { count: plugin.queueSize })}` : ''}
       </p>
     </>
   );
@@ -117,6 +119,8 @@ export function PluginCard({ plugin }: { plugin: PluginSummary }) {
       <Details plugin={plugin} />
       <div className="flex flex-wrap gap-2">
         <PrimaryActions plugin={plugin} />
+        {plugin.status !== 'uninstalled' && <SettingsButton plugin={plugin} />}
+        <RerunButton plugin={plugin} />
         <LogsButton plugin={plugin} />
         <UninstallButton plugin={plugin} />
       </div>

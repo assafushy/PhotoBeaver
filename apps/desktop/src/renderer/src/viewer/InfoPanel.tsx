@@ -1,29 +1,10 @@
 import type { AssetDetail } from '@photobeaver/shared';
-import { useQuery } from '@tanstack/react-query';
-import type { ReactNode } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { formatBytes } from '../lib/format-bytes';
+import { usePbEvent } from '../lib/use-pb-event';
 import { formatFull } from '../library/dates';
-
-function formatBytes(bytes: number | null): string {
-  if (bytes === null) return '';
-  const units = ['B', 'KB', 'MB', 'GB'];
-  let value = bytes;
-  let unit = 0;
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024;
-    unit++;
-  }
-  return `${value.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
-}
-
-function Row({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="py-1.5">
-      <dt className="text-xs text-neutral-400">{label}</dt>
-      <dd className="text-sm break-words text-neutral-100">{children}</dd>
-    </div>
-  );
-}
+import { CameraRow, EnrichmentsRow, PlaceRow, Row, TagsRow, UndoMergeButton } from './InfoExtras';
 
 type Instance = AssetDetail['instances'][number];
 
@@ -81,11 +62,10 @@ function DateRow({ asset }: { asset: AssetDetail }) {
   );
 }
 
-function Details({ asset }: { asset: AssetDetail }) {
+function MediaRows({ asset }: { asset: AssetDetail }) {
   const { t } = useTranslation();
   return (
-    <dl>
-      <DateRow asset={asset} />
+    <>
       {asset.width !== null && asset.height !== null && (
         <Row label={t('viewer.dimensions')}>{`${asset.width} x ${asset.height}`}</Row>
       )}
@@ -93,23 +73,48 @@ function Details({ asset }: { asset: AssetDetail }) {
         <Row label={t('viewer.duration')}>{`${(asset.durationMs / 1000).toFixed(1)} s`}</Row>
       )}
       {asset.mime && <Row label={t('viewer.type')}>{asset.mime}</Row>}
-      <Row label={t('viewer.locations')}>
-        <Instances asset={asset} />
-      </Row>
-    </dl>
+    </>
   );
 }
 
+function Details({ asset }: { asset: AssetDetail }) {
+  const { t } = useTranslation();
+  return (
+    <>
+      <dl>
+        <DateRow asset={asset} />
+        <PlaceRow asset={asset} />
+        <CameraRow asset={asset} />
+        <MediaRows asset={asset} />
+        <Row label={t('viewer.locations')}>
+          <Instances asset={asset} />
+        </Row>
+        <TagsRow asset={asset} />
+        <EnrichmentsRow asset={asset} />
+      </dl>
+      <UndoMergeButton asset={asset} />
+    </>
+  );
+}
+
+function useAssetDetail(assetId: string) {
+  const client = useQueryClient();
+  usePbEvent('library.changed', () => void client.invalidateQueries({ queryKey: ['asset'] }));
+  return useQuery({
+    queryKey: ['asset', assetId],
+    queryFn: () => window.pb.assets.get(assetId),
+    retry: false,
+  });
+}
+
 /**
- * Viewer info panel (SPEC 8.1): date and its origin, dimensions, type and every
- * location the asset lives in, with "Open in source".
+ * Viewer info panel (SPEC 8.1): date and its origin, place, camera, dimensions,
+ * type, every location the asset lives in with "Open in source", tags, plugin
+ * data, and "Undo merge" for merged assets.
  */
 export function InfoPanel({ assetId }: { assetId: string }) {
   const { t } = useTranslation();
-  const { data } = useQuery({
-    queryKey: ['asset', assetId],
-    queryFn: () => window.pb.assets.get(assetId),
-  });
+  const { data } = useAssetDetail(assetId);
   return (
     <aside
       aria-label={t('viewer.info')}

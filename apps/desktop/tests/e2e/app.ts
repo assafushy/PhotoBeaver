@@ -8,6 +8,8 @@ import { _electron as electron, type ElectronApplication, type Page } from '@pla
 
 export type RendererGlobals = typeof globalThis & { pb: PbApi; require?: unknown };
 
+const LINUX_GL_ARGS = process.platform === 'linux' ? ['--enable-unsafe-swiftshader'] : [];
+
 const MAIN_ENTRY = fileURLToPath(new URL('../../out/main/index.js', import.meta.url));
 
 /**
@@ -30,7 +32,7 @@ export async function launchApp(
   env: Record<string, string> = {},
 ): Promise<{ app: ElectronApplication; page: Page }> {
   const app = await electron.launch({
-    args: [MAIN_ENTRY],
+    args: [MAIN_ENTRY, ...LINUX_GL_ARGS],
     env: { ...process.env, PB_USER_DATA_DIR: userDataDir, ...env },
   });
   return { app, page: await app.firstWindow() };

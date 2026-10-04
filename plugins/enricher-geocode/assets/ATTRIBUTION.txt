@@ -1,0 +1,8 @@
+Contains data from GeoNames (geonames.org), CC BY 4.0
+https://creativecommons.org/licenses/by/4.0/
+
+Source files: https://download.geonames.org/export/dump/cities1000.zip, admin1CodesASCII.txt, countryInfo.txt
+Downloaded on 2026-10-04.
+Changes: converted to a compact binary file; sections of cities and historical,
+abandoned and destroyed places (PPLX, PPLH, PPLQ, PPLW, PPLCH) removed;
+coordinates rounded to 4 decimals.

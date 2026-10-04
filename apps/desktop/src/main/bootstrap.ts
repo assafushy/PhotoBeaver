@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { openLibrary, type OpenLibrary } from '@photobeaver/db';
 import type { AppInfo } from '@photobeaver/shared';
-import { app } from 'electron';
+import { app, powerMonitor } from 'electron';
 import { devSocketPath } from '@photobeaver/shared/dev-socket';
 import { Core, type PluginSystemOptions } from './core/core';
 import { DeveloperMode } from './core/plugins/developer-mode';
@@ -13,6 +13,7 @@ import { IpcRegistry } from './ipc/registry';
 import { createCoreLogger, createPluginLogger, type CoreLogger } from './logger';
 import { devSyncBatchDelayMs, resolveAppPaths, type AppPaths } from './paths';
 import { handleMediaProtocol } from './protocol/pb-media';
+import { handleTileProtocol } from './protocol/pb-tiles';
 import { SessionService } from './session/session-service';
 import { utilityProcessLauncher } from './plugins/utility-launcher';
 import { openExternalUrl, pickDirectory, pickPluginPackage } from './shell-actions';
@@ -60,6 +61,7 @@ function createCore(library: OpenLibrary, paths: AppPaths, logger: CoreLogger): 
     ffmpegPath: ffmpegPath(),
     pickDirectory,
     syncBatchDelayMs: devSyncBatchDelayMs(),
+    isOnBattery: () => powerMonitor.isOnBatteryPower(),
   });
 }
 
@@ -101,10 +103,12 @@ function registerIpc({ paths, logger, library, session, core, developerMode }: S
       pickPackage: pickPluginPackage,
       pickDirectory,
     },
+    duplicates: core.duplicates,
   });
 }
 
 function registerMedia({ paths, library, session, core }: Services): void {
+  handleTileProtocol(library.db);
   handleMediaProtocol({
     db: library.db,
     core,

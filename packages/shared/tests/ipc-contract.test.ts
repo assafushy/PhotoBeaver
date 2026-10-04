@@ -14,6 +14,10 @@ describe('ipc contract', () => {
   });
 
   it('applies library query defaults', () => {
-    expect(IPC_CONTRACT['library.query'].input.parse({})).toEqual({ cursor: null, limit: 200 });
+    expect(IPC_CONTRACT['library.query'].input.parse({})).toEqual({
+      cursor: null,
+      limit: 200,
+      filter: {},
+    });
   });
 });

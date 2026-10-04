@@ -44,5 +44,6 @@ Also available in any build: `PB_DEV_SOCKET` sets the developer socket path that
 - `packages/create-photobeaver-plugin`: `npm create photobeaver-plugin` project scaffolder
 - `apps/desktop/src/plugin-host`: the process each plugin runs in
 - `plugins/connector-local`: the default local folder connector (imports only from the SDK)
+- `plugins/enricher-metadata`, `plugins/enricher-geocode`, `plugins/enricher-dedup`: the default enrichers (capture date, camera and GPS; offline place names; duplicate detection and merging)
 - `docs/plugin-guide.md`: how to write, test, pack and install a plugin
 - `docs/DECISIONS.md`: implementation decisions not covered by the spec

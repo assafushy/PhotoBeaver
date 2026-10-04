@@ -1,4 +1,12 @@
-import { integer, primaryKey, real, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core';
+import {
+  index,
+  integer,
+  primaryKey,
+  real,
+  sqliteTable,
+  text,
+  unique,
+} from 'drizzle-orm/sqlite-core';
 import { assets } from './assets';
 import { sources } from './sources';
 
@@ -24,7 +32,7 @@ export const assetTags = sqliteTable(
     pluginId: text('plugin_id'),
     confidence: real('confidence'),
   },
-  (t) => [primaryKey({ columns: [t.assetId, t.tagId] })],
+  (t) => [primaryKey({ columns: [t.assetId, t.tagId] }), index('asset_tags_tag_idx').on(t.tagId)],
 );
 
 export const people = sqliteTable('people', {

@@ -1,5 +1,10 @@
-import type { AssetSummary, LibraryPage, ThumbUpdate } from '@photobeaver/shared';
-import { useInfiniteQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
+import type { AssetSummary, LibraryFilter, LibraryPage, ThumbUpdate } from '@photobeaver/shared';
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useQueryClient,
+  type InfiniteData,
+} from '@tanstack/react-query';
 import { useEffect, useMemo } from 'react';
 import { usePbEvent } from '../lib/use-pb-event';
 import { useThumbVersions } from './thumb-store';
@@ -28,12 +33,14 @@ function patchThumbs(
 
 type LibraryQuery = ReturnType<typeof useLibraryQuery>;
 
-function useLibraryQuery() {
+function useLibraryQuery(filter: LibraryFilter) {
   return useInfiniteQuery({
-    queryKey: LIBRARY_QUERY_KEY,
-    queryFn: ({ pageParam }) => window.pb.library.query({ cursor: pageParam, limit: PAGE_SIZE }),
+    queryKey: [...LIBRARY_QUERY_KEY, filter],
+    queryFn: ({ pageParam }) =>
+      window.pb.library.query({ cursor: pageParam, limit: PAGE_SIZE, filter }),
     initialPageParam: null as LibraryPage['nextCursor'],
     getNextPageParam: (last) => last.nextCursor,
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -51,19 +58,23 @@ function useLibraryEvents() {
   );
   usePbEvent('thumbs.ready', ({ items }) => {
     const updates = new Map(items.map((item) => [item.id, item]));
-    client.setQueryData<Pages>(LIBRARY_QUERY_KEY, (data) => patchThumbs(data, updates));
+    client.setQueriesData<Pages>({ queryKey: LIBRARY_QUERY_KEY }, (data) =>
+      patchThumbs(data, updates),
+    );
     useThumbVersions.getState().bump([...updates.keys()]);
   });
 }
 
 /**
- * Loads the whole library summary list progressively (pages of 1000, keyset cursor),
- * refetches on `library.changed`, and patches tiles in place on `thumbs.ready`.
+ * Loads the library summary list for a filter progressively (pages of 1000,
+ * keyset cursor), refetches on `library.changed`, and patches tiles in place
+ * on `thumbs.ready`.
  *
+ * @param filter - Search and filters; `{}` for the whole library.
  * @returns Flattened items, the total, and loading flags.
  */
-export function useLibrary() {
-  const query = useLibraryQuery();
+export function useLibrary(filter: LibraryFilter = {}) {
+  const query = useLibraryQuery(filter);
   useLoadAllPages(query);
   useLibraryEvents();
   const items = useMemo<AssetSummary[]>(
@@ -76,5 +87,6 @@ export function useLibrary() {
     isPending: query.isPending,
     isError: query.isError,
     isLoadingMore: query.hasNextPage ?? false,
+    isFetching: query.isFetching,
   };
 }

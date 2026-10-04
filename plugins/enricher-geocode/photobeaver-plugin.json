@@ -1,0 +1,28 @@
+{
+  "id": "com.photobeaver.enricher-geocode",
+  "name": "Places",
+  "version": "0.1.0",
+  "type": "enricher",
+  "apiVersion": "1",
+  "main": "dist/index.js",
+  "description": "Turns photo locations into city, region and country names, fully offline, using a bundled GeoNames dataset.",
+  "author": { "name": "Photo Beaver" },
+  "license": "MIT",
+  "engines": { "photobeaver": ">=0.1.0" },
+  "default": { "enabledOnInstall": true },
+  "permissions": {
+    "network": [],
+    "filesystem": "none",
+    "originals": "none"
+  },
+  "enricher": {
+    "accepts": ["image/*", "video/*"],
+    "input": "metadata",
+    "dependsOn": ["com.photobeaver.enricher-metadata"],
+    "produces": ["tags", "enrichment:location"],
+    "concurrency": 4,
+    "resourceClass": "light",
+    "runOn": ["new", "changed"]
+  },
+  "configSchema": {}
+}

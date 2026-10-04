@@ -11,6 +11,9 @@ import type { ConnectorRegistry, CoreLog } from '../connectors/registry';
 import type { EventSink } from '../events/event-sink';
 import { bundledPlugins, compareVersions, type BundledPlugin } from './default-plugins';
 import { loadPlugin, type LoadedPlugin, type LoaderDeps } from './plugin-loader';
+import type { EnricherRegistry } from '../enrich/enricher-registry';
+import type { PluginSettings } from '../enrich/plugin-settings';
+import type { ConfigSchema } from '@photobeaver/shared';
 import { pluginRows, type InstallSource, type PluginRow } from './plugin-rows';
 import { pluginSummary, stagedSummary } from './plugin-summary';
 import { readManifest, type PluginStore, type StagedPackage } from './plugin-store';
@@ -27,6 +30,10 @@ export interface PluginManagerDeps {
   defaultsDir: string;
   logsDir: string;
   removeSources(pluginId: string, userId: string): Promise<void>;
+  enrichers: EnricherRegistry;
+  enrichLibrary(pluginId: string): void;
+  queueSize(pluginId: string): number;
+  settings: PluginSettings;
   clock?: Clock;
 }
 
@@ -52,9 +59,10 @@ export class PluginManager {
 
   /** Installs or upgrades default plugins, loads enabled plugins, starts the idle sweep. */
   start(): void {
-    this.installDefaults();
+    const fresh = this.installDefaults().filter((b) => b.isNew);
     for (const row of pluginRows.list(this.deps.db))
       if (row.enabled && row.installPath) this.load(row.id);
+    fresh.forEach((b) => this.enrichLibraryIfEnricher(b.manifest.id));
     this.sweepTimer = setInterval(() => void this.sweepIdle(), MINUTE_MS);
     this.sweepTimer.unref?.();
   }
@@ -158,6 +166,7 @@ export class PluginManager {
     pluginRows.update(this.deps.db, id, { enabled: enabled ? 1 : 0, updatedAt: this.now() });
     if (enabled) this.load(id);
     else await this.unload(id);
+    if (enabled) this.enrichLibraryIfEnricher(id);
     this.audit(userId, enabled ? 'plugin.enable' : 'plugin.disable', id);
     this.changed();
   }
@@ -198,7 +207,10 @@ export class PluginManager {
   /** Reinstalls every default plugin the user removed ("Restore default plugins"). */
   restoreDefaults(userId: string): void {
     pluginRows.setRemovedDefaults(this.deps.db, []);
-    for (const { manifest } of this.installDefaults()) this.load(manifest.id);
+    for (const { manifest, isNew } of this.installDefaults()) {
+      this.load(manifest.id);
+      if (isNew) this.enrichLibraryIfEnricher(manifest.id);
+    }
     this.audit(userId, 'plugin.restore_defaults', null);
     this.changed();
   }
@@ -243,6 +255,7 @@ export class PluginManager {
       throw error;
     }
     this.cleanupPrevious(previous, installPath);
+    if (!previous || !previous.installPath) this.enrichLibraryIfEnricher(manifest.id);
     this.audit(options.userId, 'plugin.install', manifest.id, {
       version: manifest.version,
       source: options.source,
@@ -290,9 +303,58 @@ export class PluginManager {
     if (old && old !== installPath && previous.installSource !== 'dev') this.deps.store.remove(old);
   }
 
-  private installDefaults(): BundledPlugin[] {
+  /**
+   * A plugin's settings form data (SPEC 8.1 #9): schema and current values.
+   *
+   * @param id - Plugin id.
+   * @returns Schema and values with defaults applied.
+   */
+  settingsOf(id: string): { configSchema: ConfigSchema; values: Record<string, unknown> } {
+    const manifest = this.manifestOf(id);
+    return {
+      configSchema: manifest.configSchema,
+      values: this.deps.settings.get(id, manifest.configSchema),
+    };
+  }
+
+  /**
+   * Saves a plugin's settings.
+   *
+   * @param id - Plugin id.
+   * @param values - New values.
+   * @param userId - Acting user.
+   */
+  setSettings(id: string, values: Record<string, unknown>, userId: string): void {
+    this.deps.settings.set(id, this.manifestOf(id).configSchema, values);
+    this.audit(userId, 'plugin.settings', id);
+    this.changed();
+  }
+
+  private manifestOf(id: string): PluginManifest {
+    const loaded = this.loaded.get(id);
+    if (!loaded) throw new Error('Enable the plugin to change its settings');
+    return loaded.manifest;
+  }
+
+  /**
+   * Queues an enricher for every asset ("Re-run on library", SPEC 6.3).
+   *
+   * @param id - Plugin id.
+   * @param userId - Acting user.
+   */
+  rerunOnLibrary(id: string, userId: string): void {
+    if (!this.deps.enrichers.get(id)) throw new Error('Only enabled enrichers can be re-run');
+    this.deps.enrichLibrary(id);
+    this.audit(userId, 'plugin.rerun', id);
+  }
+
+  private enrichLibraryIfEnricher(id: string): void {
+    if (this.deps.enrichers.get(id)) this.deps.enrichLibrary(id);
+  }
+
+  private installDefaults(): (BundledPlugin & { isNew: boolean })[] {
     const removed = new Set(pluginRows.removedDefaults(this.deps.db));
-    const installed: BundledPlugin[] = [];
+    const installed: (BundledPlugin & { isNew: boolean })[] = [];
     for (const bundled of this.bundled()) {
       if (removed.has(bundled.manifest.id) || !this.needsDefaultInstall(bundled)) continue;
       const row = pluginRows.get(this.deps.db, bundled.manifest.id);
@@ -306,7 +368,7 @@ export class PluginManager {
         this.now(),
       );
       this.deps.store.pruneVersions(bundled.manifest.id, installPath);
-      installed.push(bundled);
+      installed.push({ ...bundled, isNew: !row });
     }
     return installed;
   }
@@ -327,6 +389,7 @@ export class PluginManager {
         readManifest(row.installPath!),
         row.installPath!,
       );
+      if (loaded.enricher) this.deps.enrichers.add(loaded.enricher);
       this.loaded.set(id, loaded);
       if (loaded.entry) this.deps.registry.add(loaded.entry);
       return loaded;
@@ -341,6 +404,7 @@ export class PluginManager {
     const loaded = this.loaded.get(id);
     this.loaded.delete(id);
     this.deps.registry.remove(id);
+    this.deps.enrichers.remove(id);
     this.deps.watches.unsubscribePlugin(id);
     await loaded?.handle.stop();
   }
@@ -385,6 +449,7 @@ export class PluginManager {
       loaded: this.loaded.get(row.id),
       error: this.errors.get(row.id),
       isDefault,
+      queueSize: this.deps.queueSize(row.id),
       sourceCount,
     });
   }

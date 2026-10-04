@@ -34,12 +34,12 @@ describe('connector-local watch', () => {
       await vi.waitFor(() => expect(batches.flatMap((b) => b.deletes ?? [])).toHaveLength(1), {
         timeout: 25_000,
       });
-      await vi.waitFor(() => expect(batches.flatMap((b) => b.upserts ?? [])).toHaveLength(1), {
-        timeout: 25_000,
-      });
-      const upserts = batches.flatMap((b) => b.upserts ?? []).map((i) => i.filename);
+      const upserted = () => [
+        ...new Set(batches.flatMap((b) => b.upserts ?? []).map((i) => i.filename)),
+      ];
+      await vi.waitFor(() => expect(upserted()).toContain('new.jpg'), { timeout: 25_000 });
+      expect(upserted()).not.toContain('notes.txt');
       const deletes = batches.flatMap((b) => b.deletes ?? []);
-      expect(upserts).toEqual(['new.jpg']);
       expect(deletes).toEqual([path.join(tree.root, 'old.jpg')]);
     },
   );

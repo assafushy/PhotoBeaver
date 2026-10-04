@@ -1,0 +1,59 @@
+{
+  "id": "com.photobeaver.enricher-dedup",
+  "name": "Duplicate finder",
+  "version": "0.1.0",
+  "type": "enricher",
+  "apiVersion": "1",
+  "main": "dist/index.js",
+  "description": "Shows the same photo from several sources as one item, and suggests look-alike copies such as resized or re-compressed versions. Everything runs on this computer.",
+  "author": { "name": "Photo Beaver" },
+  "license": "MIT",
+  "engines": { "photobeaver": ">=0.1.0" },
+  "default": { "enabledOnInstall": true },
+  "permissions": {
+    "originals": "read",
+    "assets": "merge",
+    "network": [],
+    "filesystem": "none",
+    "oauth": false,
+    "nativeModules": false,
+    "gpu": false
+  },
+  "enricher": {
+    "accepts": ["image/*", "video/*"],
+    "input": "thumbnail",
+    "dependsOn": ["com.photobeaver.enricher-metadata"],
+    "produces": ["identity", "duplicates"],
+    "resourceClass": "light",
+    "concurrency": 1,
+    "runOn": ["new", "changed"]
+  },
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "exactMerge": {
+        "type": "string",
+        "enum": ["auto", "ask"],
+        "default": "auto",
+        "title": "When files are byte-identical"
+      },
+      "nearDuplicates": {
+        "type": "boolean",
+        "default": true,
+        "title": "Suggest look-alike copies (resized, re-compressed)"
+      },
+      "nearThreshold": {
+        "type": "integer",
+        "default": 6,
+        "minimum": 0,
+        "maximum": 16,
+        "title": "Look-alike sensitivity (Hamming distance)"
+      },
+      "downloadToCompare": {
+        "type": "boolean",
+        "default": true,
+        "title": "Download cloud originals when needed to confirm a match"
+      }
+    }
+  }
+}

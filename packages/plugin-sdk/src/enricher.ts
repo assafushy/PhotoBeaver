@@ -66,6 +66,13 @@ export interface EnrichInput {
   mime: string;
 }
 
+export interface EnrichInputOptions {
+  /** Which bytes to fetch. Defaults to the manifest's `enricher.input`; limited by `permissions.originals`. */
+  input?: 'thumbnail' | 'original';
+  /** Ask core to convert the input to PNG, for plugins that cannot decode WebP or camera formats. */
+  format?: 'png';
+}
+
 export interface IdentityPage {
   items: { assetId: string; key: string }[];
   cursor?: string;
@@ -82,7 +89,7 @@ export interface AssetsApi {
 }
 
 export interface EnrichContext<Settings> extends PluginContext {
-  getInput(asset: AssetView): Promise<EnrichInput>;
+  getInput(asset: AssetView, options?: EnrichInputOptions): Promise<EnrichInput>;
   settings<T = Settings>(): Promise<T>;
   assets: AssetsApi;
 }

@@ -4,7 +4,9 @@ import { getAssetDetail, instanceExternalUrl } from '../../core/assets/asset-ser
 import type { SourceService } from '../../core/sources/source-service';
 import { queryLibraryPage } from '../../library/library-service';
 import type { IpcRegistry } from '../registry';
+import { registerLibraryExtras } from './library-extras';
 import { registerPluginHandlers, type PluginHandlerDeps } from './plugins';
+import type { DuplicatesService } from '../../core/enrich/duplicates-service';
 
 export interface HandlerDeps {
   db: LibraryDb;
@@ -13,6 +15,7 @@ export interface HandlerDeps {
   pickDirectory: () => Promise<string | null>;
   openExternalUrl: (url: string) => Promise<void>;
   plugins: PluginHandlerDeps;
+  duplicates: DuplicatesService;
 }
 
 function registerLibraryHandlers(registry: IpcRegistry, deps: HandlerDeps): void {
@@ -52,5 +55,6 @@ export function registerHandlers(registry: IpcRegistry, deps: HandlerDeps): void
   registerLibraryHandlers(registry, deps);
   registerSourceHandlers(registry, deps);
   registerPluginHandlers(registry, deps.plugins);
+  registerLibraryExtras(registry, { db: deps.db, duplicates: deps.duplicates });
   registry.assertComplete();
 }

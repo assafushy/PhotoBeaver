@@ -15,6 +15,7 @@ import {
 } from '@photobeaver/shared/rpc';
 import type { CoreLog } from '../connectors/registry';
 import type { CallContexts } from './call-contexts';
+import { registerEnrichHandlers } from './enrich-handlers';
 
 export interface CoreHandlerDeps {
   contexts: CallContexts;
@@ -157,4 +158,5 @@ export function registerCoreHandlers(peer: RpcPeer, deps: CoreHandlerDeps): void
   registerPluginCalls(peer, deps);
   registerSourceCalls(peer, deps);
   registerSyncCalls(peer, deps);
+  registerEnrichHandlers(peer, deps.contexts);
 }
