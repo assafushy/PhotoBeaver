@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { PbApi } from '@photobeaver/shared';
-import { _electron as electron, type ElectronApplication, type Page } from '@playwright/test';
+import { _electron as electron, test, type ElectronApplication, type Page } from '@playwright/test';
 
 export type RendererGlobals = typeof globalThis & { pb: PbApi; require?: unknown };
 
@@ -74,6 +74,39 @@ export async function killApp(app: ElectronApplication): Promise<void> {
   else app.process().kill('SIGKILL');
   for (let i = 0; i < 100 && isAlive(pid); i++) await new Promise((r) => setTimeout(r, 100));
   if (process.platform === 'win32') await new Promise((r) => setTimeout(r, 1000));
+}
+
+const CLOSE_LIMIT_MS = 20_000;
+
+function windowsProcesses(): string {
+  if (process.platform !== 'win32') return '';
+  try {
+    return execFileSync('tasklist', ['/FI', 'IMAGENAME eq electron.exe', '/V'], {
+      encoding: 'utf8',
+    });
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Closes the app, but never waits forever: if `close()` takes longer than 20 s it
+ * prints whether the app process is still alive (and the Electron processes on
+ * Windows) for diagnosis, then kills the process tree.
+ *
+ * @param app - The running app.
+ */
+export async function closeApp(app: ElectronApplication): Promise<void> {
+  const pid = app.process().pid!;
+  const closed = await Promise.race([
+    app.close().then(() => true),
+    new Promise<false>((resolve) => setTimeout(() => resolve(false), CLOSE_LIMIT_MS)),
+  ]);
+  if (closed) return;
+  const detail = `close() timed out; main process alive: ${isAlive(pid)}\n${windowsProcesses()}`;
+  console.warn(`[closeApp] ${detail}`);
+  test.info().annotations.push({ type: 'quit-hang', description: detail });
+  await killApp(app);
 }
 
 /**

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { writeImageSet } from '../fixtures/generate';
-import { launchApp, libraryCount, removeDir, tempDir, type RendererGlobals } from './app';
+import { launchApp, libraryCount, removeDir, tempDir, type RendererGlobals, closeApp } from './app';
 import { addSampleItem, pbPlugin, scaffoldConnector, startDev } from './plugin-project';
 
 const LOCAL = 'com.photobeaver.connector-local';
@@ -31,7 +31,7 @@ test('installs the default local connector on first run and lists it', async () 
   expect(
     existsSync(path.join(userData, 'plugins', LOCAL, '0.1.0', 'photobeaver-plugin.json')),
   ).toBe(true);
-  await app.close();
+  await closeApp(app);
 });
 
 test('keeps the UI working when the plugin host is killed, and the sync job retries', async () => {
@@ -56,7 +56,7 @@ test('keeps the UI working when the plugin host is killed, and the sync job retr
   await page.getByRole('link', { name: 'Library' }).click();
   await expect.poll(() => libraryCount(page), { timeout: 90_000 }).toBe(1200);
   expect((await pb(page)).find((p) => p.id === LOCAL)!.restarts).toBeGreaterThanOrEqual(1);
-  await app.close();
+  await closeApp(app);
 });
 
 test('disabling a connector hides it from Add source and flags its sources', async () => {
@@ -87,7 +87,7 @@ test('disabling a connector hides it from Add source and flags its sources', asy
   await expect(page.locator(`[data-plugin-id="${LOCAL}"]`).getByTestId('plugin-status')).toHaveText(
     'Enabled',
   );
-  await app.close();
+  await closeApp(app);
 });
 
 test('develops a scaffolded plugin with hot reload, packs it and installs it from file on a clean profile', async () => {
@@ -128,7 +128,7 @@ test('develops a scaffolded plugin with hot reload, packs it and installs it fro
     await expect.poll(() => libraryCount(dev.page), { timeout: 30_000 }).toBe(3);
   } finally {
     watcher.kill();
-    await dev.app.close();
+    await closeApp(dev.app);
   }
 
   pbPlugin(['pack', '--dir', project]);
@@ -158,5 +158,5 @@ test('develops a scaffolded plugin with hot reload, packs it and installs it fro
   );
   await clean.page.getByRole('link', { name: 'Library' }).click();
   await expect.poll(() => libraryCount(clean.page), { timeout: 30_000 }).toBe(3);
-  await clean.app.close();
+  await closeApp(clean.app);
 });

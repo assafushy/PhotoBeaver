@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test';
-import { launchApp, removeDir, tempDir, type RendererGlobals } from './app';
+import { launchApp, removeDir, tempDir, type RendererGlobals, closeApp } from './app';
 
 let userDataDir: string;
 let app: ElectronApplication;
@@ -13,7 +13,7 @@ test.beforeEach(async () => {
 });
 
 test.afterEach(async () => {
-  await app.close();
+  await closeApp(app);
   removeDir(userDataDir);
 });
 

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { writeEnrichmentSet } from '../fixtures/enrichment-set';
-import { launchApp, libraryCount, removeDir, tempDir, type RendererGlobals } from './app';
+import { launchApp, libraryCount, removeDir, tempDir, type RendererGlobals, closeApp } from './app';
 
 const LOCAL = 'com.photobeaver.connector-local';
 const ASSETS = 8;
@@ -57,7 +57,7 @@ test('enriches dates and places, merges copies and finds "Paris"', async () => {
   await expect(page.getByTestId('viewer-place')).toContainText('Paris');
   await expect(info).toContainText('Test Cam');
   await page.keyboard.press('Escape');
-  await app.close();
+  await closeApp(app);
 });
 
 test('shows a file copied into two folders as one item with two locations', async () => {
@@ -68,7 +68,7 @@ test('shows a file copied into two folders as one item with two locations', asyn
   await expect(page.getByTestId('viewer-info').locator('li', { hasText: 'same.jpg' })).toHaveCount(
     2,
   );
-  await app.close();
+  await closeApp(app);
 });
 
 test('lists the resized copy in Duplicates, merges it and undoes the merge', async () => {
@@ -85,7 +85,7 @@ test('lists the resized copy in Duplicates, merges it and undoes the merge', asy
   await expect(mine).toHaveCount(0);
   await page.getByRole('link', { name: 'Library' }).click();
   await expect.poll(() => libraryCount(page)).toBe(ASSETS);
-  await app.close();
+  await closeApp(app);
 });
 
 function collectRendererErrors(page: Page): string[] {
@@ -115,5 +115,5 @@ test('shows geotagged photos on the map', async () => {
   await page.getByRole('link', { name: 'Map' }).click();
   await expectMapMarkers(page, errors);
   expect(errors).toEqual([]);
-  await app.close();
+  await closeApp(app);
 });

@@ -3,7 +3,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { loadVectorExtension } from '@photobeaver/db';
 import Database from 'better-sqlite3';
 import { writeImageSet } from '../fixtures/generate';
-import { launchApp, libraryCount, removeDir, tempDir, type RendererGlobals } from './app';
+import { launchApp, libraryCount, removeDir, tempDir, type RendererGlobals, closeApp } from './app';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -58,7 +58,7 @@ test.beforeAll(async () => {
     root,
   );
   await expect.poll(() => libraryCount(page), { timeout: 30_000 }).toBe(6);
-  await app.close();
+  await closeApp(app);
   seedFaces(userData);
 });
 
@@ -83,7 +83,7 @@ test('groups faces into people that can be named and searched', async () => {
   await expect.poll(() => libraryCount(page), { timeout: 10_000 }).toBe(3);
   await page.getByTestId('library-tile').first().click();
   await expect(page.getByTestId('viewer-person')).toContainText('Ada Lovelace');
-  await app.close();
+  await closeApp(app);
 });
 
 test('splits a face off into a new person', async () => {
@@ -95,5 +95,5 @@ test('splits a face off into a new person', async () => {
   await page.getByTestId('person-face').first().click();
   await page.getByRole('button', { name: 'Move to a new person' }).click();
   await waitForPeople(page, 3);
-  await app.close();
+  await closeApp(app);
 });

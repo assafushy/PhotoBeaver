@@ -6,6 +6,7 @@ import { createMainWindow } from './window';
 
 let running: App | null = null;
 let quitting = false;
+let lastLogger: App['logger'] | null = null;
 
 function reportFatal(error: unknown): void {
   const message = error instanceof Error ? (error.stack ?? error.message) : String(error);
@@ -22,6 +23,7 @@ function openWindow(): void {
 async function onReady(): Promise<void> {
   const { startApp } = await import('./bootstrap');
   running = await startApp();
+  lastLogger = running.logger;
   openWindow();
 }
 
@@ -60,7 +62,10 @@ function registerAppEvents(): void {
   app.on('activate', () => {
     if (running && BrowserWindow.getAllWindows().length === 0) openWindow();
   });
+  app.on('will-quit', () => lastLogger?.info({}, 'Quitting'));
   app.on('before-quit', (event) => {
+    lastLogger?.info({ firstRequest: !quitting }, 'Quit requested');
+    lastLogger?.flush();
     if (!running || quitting) return;
     quitting = true;
     event.preventDefault();

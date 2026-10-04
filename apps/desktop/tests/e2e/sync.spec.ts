@@ -3,7 +3,15 @@ import path from 'node:path';
 import { expect, test } from '@playwright/test';
 import Database from 'better-sqlite3';
 import { writeImageSet } from '../fixtures/generate';
-import { killApp, launchApp, libraryCount, removeDir, tempDir, type RendererGlobals } from './app';
+import {
+  killApp,
+  launchApp,
+  libraryCount,
+  removeDir,
+  tempDir,
+  type RendererGlobals,
+  closeApp,
+} from './app';
 
 const COUNT = 1500;
 const LOCAL = 'com.photobeaver.connector-local';
@@ -55,7 +63,7 @@ test('fills the grid progressively and resumes after the app is killed mid-sync'
 
   const second = await launchApp(userDataDir);
   await expect.poll(() => libraryCount(second.page), { timeout: 60_000 }).toBe(COUNT);
-  await second.app.close();
+  await closeApp(second.app);
   expect(instanceStats(userDataDir)).toEqual({ total: COUNT, uniq: COUNT, live: COUNT });
 });
 
@@ -70,7 +78,7 @@ test('removes a deleted file from the grid after Sync now', async () => {
   });
   await page.getByRole('link', { name: 'Library' }).click();
   await expect.poll(() => libraryCount(page)).toBe(COUNT - 1);
-  await app.close();
+  await closeApp(app);
 });
 
 test('opens the viewer and steps through photos with the keyboard', async () => {
@@ -85,5 +93,5 @@ test('opens the viewer and steps through photos with the keyboard', async () => 
   await expect.poll(() => page.url()).toBe(firstUrl);
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('viewer')).toBeHidden();
-  await app.close();
+  await closeApp(app);
 });
