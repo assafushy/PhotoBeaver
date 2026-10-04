@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { schema, type LibraryDb } from '@photobeaver/db';
 import type { EnrichInput, EnrichInputOptions } from '@photobeaver/plugin-sdk';
@@ -88,7 +88,8 @@ export class InputProvider {
     await mkdir(this.tempDir, { recursive: true });
     const target = path.join(this.tempDir, `${randomUUID()}.png`);
     tempFiles.push(target);
-    await sharp(source, { failOn: 'none' }).rotate().png().toFile(target);
+    const bytes = await readFile(source);
+    await sharp(bytes, { failOn: 'none' }).rotate().png().toFile(target);
     return { path: target, mime: 'image/png' };
   }
 }
