@@ -10,6 +10,7 @@ import { systemClock, type Clock } from '../clock';
 import type { ConnectorRegistry, CoreLog } from '../connectors/registry';
 import type { EventSink } from '../events/event-sink';
 import type { JobContext } from '../jobs/lane';
+import { isHostCrashedError } from '../plugins/host-errors';
 import { sourceState } from '../scheduler/source-state';
 import type { BatchWriter } from './batch-writer';
 import { validateBatch } from './media-item-schema';
@@ -136,6 +137,10 @@ export class SyncRunner {
   private recordFailure(source: SourceRow, error: unknown, signal: AbortSignal): void {
     const now = this.clock();
     if (signal.aborted) return sourceState.cancelled(this.deps.db, source.id);
+    if (isHostCrashedError(error)) {
+      sourceState.queued(this.deps.db, source.id);
+      throw error;
+    }
     this.deps.logger.warn({ err: error, sourceId: source.id }, 'Sync failed');
     if (isAuthRequiredError(error))
       return sourceState.authRequired(this.deps.db, source.id, now, error);

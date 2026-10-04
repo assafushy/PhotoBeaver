@@ -1,0 +1,1 @@
+ALTER TABLE `plugins` ADD `install_path` text;

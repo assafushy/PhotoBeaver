@@ -13,6 +13,7 @@ import type { LocalConfig } from './config';
 import { encodeCursor, resumePoint } from './cursor';
 import { changedItems, scanFile, type ScannedFile } from './scan';
 import { walkFiles } from './walk';
+import { watchLocalFolder } from './watch';
 
 export type { LocalConfig } from './config';
 
@@ -82,5 +83,10 @@ export default defineConnector<LocalConfig>({
   async getOriginal(ctx, item) {
     const file = assertInsideRoot(ctx, item);
     return Readable.toWeb(createReadStream(file)) as ReadableStream<Uint8Array>;
+  },
+
+  async watch(ctx, onChange) {
+    await assertDirectory(ctx.config.root);
+    return watchLocalFolder(ctx, onChange);
   },
 });

@@ -32,11 +32,17 @@ Developer-only environment variables (ignored in packaged builds):
 - `PB_USER_DATA_DIR`: use another userData folder, for example a throwaway library.
 - `PB_SYNC_BATCH_DELAY_MS`: pause between sync batches, to watch the grid fill or test crash recovery.
 
+Also available in any build: `PB_DEV_SOCKET` sets the developer socket path that `pb-plugin dev` and the app use.
+
 ## Layout
 
 - `apps/desktop`: Electron app (`src/main` Electron glue, `src/main/core` headless core services, `src/preload` bridge, `src/renderer` React UI)
 - `packages/shared`: permissions, roles, IPC contract
 - `packages/db`: Drizzle schema, migrations, database open/migrate/backup
 - `packages/plugin-sdk`: `@photobeaver/plugin-sdk`, the types and helpers plugins build against
+- `packages/plugin-cli`: `pb-plugin` (build, dev, validate, test, pack)
+- `packages/create-photobeaver-plugin`: `npm create photobeaver-plugin` project scaffolder
+- `apps/desktop/src/plugin-host`: the process each plugin runs in
 - `plugins/connector-local`: the default local folder connector (imports only from the SDK)
+- `docs/plugin-guide.md`: how to write, test, pack and install a plugin
 - `docs/DECISIONS.md`: implementation decisions not covered by the spec

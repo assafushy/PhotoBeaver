@@ -37,21 +37,29 @@ export class BatchWriter {
   ) {}
 
   /**
-   * Applies one validated batch and its cursor atomically.
+   * Applies one validated batch and its cursor atomically. Watch batches pass
+   * `saveCursor: false` so they never disturb a resumable full scan.
    *
    * @param batch - The validated batch.
    * @param ctx - Source id, run id and time (db is ignored; a transaction is opened).
+   * @param options - Whether to store the batch cursor (default true).
    * @returns Counts and the assets that changed.
    */
-  apply(batch: ValidatedBatch, ctx: Omit<WriteContext, 'db'>): BatchResult {
+  apply(
+    batch: ValidatedBatch,
+    ctx: Omit<WriteContext, 'db'>,
+    options: { saveCursor?: boolean } = {},
+  ): BatchResult {
     return this.db.transaction((tx) => {
       const write = { ...ctx, db: tx as unknown as LibraryDb };
       upsertAlbums(batch.albums ?? [], write);
       const result = this.applyItems(batch, write);
-      tx.update(sources)
-        .set({ syncCursor: batch.cursor })
-        .where(eq(sources.id, ctx.sourceId))
-        .run();
+      if (options.saveCursor !== false) {
+        tx.update(sources)
+          .set({ syncCursor: batch.cursor })
+          .where(eq(sources.id, ctx.sourceId))
+          .run();
+      }
       return result;
     });
   }

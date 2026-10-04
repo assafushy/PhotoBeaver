@@ -7,7 +7,11 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./event-names": "./src/event-names.ts"
+    "./event-names": "./src/event-names.ts",
+    "./rpc": "./src/rpc/index.ts",
+    "./pbplugin": "./src/pbplugin.ts",
+    "./dev-socket": "./src/dev-socket.ts",
+    "./manifest": "./src/manifest.ts"
   },
   "scripts": {
     "lint": "eslint .",
@@ -15,6 +19,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "fflate": "^0.8.3",
     "zod": "^4.6.5"
   },
   "devDependencies": {

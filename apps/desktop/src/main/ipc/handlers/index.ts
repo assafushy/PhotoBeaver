@@ -4,6 +4,7 @@ import { getAssetDetail, instanceExternalUrl } from '../../core/assets/asset-ser
 import type { SourceService } from '../../core/sources/source-service';
 import { queryLibraryPage } from '../../library/library-service';
 import type { IpcRegistry } from '../registry';
+import { registerPluginHandlers, type PluginHandlerDeps } from './plugins';
 
 export interface HandlerDeps {
   db: LibraryDb;
@@ -11,6 +12,7 @@ export interface HandlerDeps {
   appInfo: () => AppInfo;
   pickDirectory: () => Promise<string | null>;
   openExternalUrl: (url: string) => Promise<void>;
+  plugins: PluginHandlerDeps;
 }
 
 function registerLibraryHandlers(registry: IpcRegistry, deps: HandlerDeps): void {
@@ -49,5 +51,6 @@ function registerSourceHandlers(registry: IpcRegistry, deps: HandlerDeps): void 
 export function registerHandlers(registry: IpcRegistry, deps: HandlerDeps): void {
   registerLibraryHandlers(registry, deps);
   registerSourceHandlers(registry, deps);
+  registerPluginHandlers(registry, deps.plugins);
   registry.assertComplete();
 }

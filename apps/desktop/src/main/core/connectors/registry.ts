@@ -54,8 +54,8 @@ function pluginLogger(logger: CoreLog): Logger {
 }
 
 /**
- * In-process registry of builtin connectors (M1). Builds the `ctx` objects that
- * plugins see; M2 replaces the in-process calls with plugin hosts over RPC.
+ * Registry of loaded connectors and builder of the core-side `ctx` objects.
+ * Entries are plugin-host proxies in the app and in-process plugins in tests.
  */
 export class ConnectorRegistry {
   private readonly entries = new Map<string, ConnectorEntry>();
@@ -74,6 +74,24 @@ export class ConnectorRegistry {
    */
   registerBuiltins(now: number): void {
     for (const { manifest } of this.entries.values()) this.upsertPluginRow(manifest, now);
+  }
+
+  /**
+   * Adds or replaces a loaded connector.
+   *
+   * @param entry - Manifest and implementation.
+   */
+  add(entry: ConnectorEntry): void {
+    this.entries.set(entry.manifest.id, entry);
+  }
+
+  /**
+   * Removes a connector (disabled or uninstalled).
+   *
+   * @param pluginId - Plugin id.
+   */
+  remove(pluginId: string): void {
+    this.entries.delete(pluginId);
   }
 
   get(pluginId: string): ConnectorEntry | undefined {

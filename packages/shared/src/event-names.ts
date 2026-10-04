@@ -3,6 +3,7 @@ import type { PbEventName } from './events';
 export const PB_EVENT_NAMES: readonly PbEventName[] = [
   'library.changed',
   'sources.changed',
+  'plugins.changed',
   'sync.progress',
   'thumbs.ready',
 ];

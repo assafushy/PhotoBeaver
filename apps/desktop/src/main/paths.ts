@@ -7,6 +7,11 @@ export interface AppPaths {
   libraryDir: string;
   logsDir: string;
   migrationsFolder: string;
+  pluginsDir: string;
+  pluginDataDir: string;
+  pluginTempDir: string;
+  defaultPluginsDir: string;
+  pluginHostEntry: string;
 }
 
 const USER_DATA_ENV = 'PB_USER_DATA_DIR';
@@ -20,10 +25,15 @@ export function applyUserDataOverride(): void {
   if (override && !app.isPackaged) app.setPath('userData', path.resolve(override));
 }
 
+function defaultPluginsDir(): string {
+  if (app.isPackaged) return path.join(process.resourcesPath, 'plugins');
+  return fileURLToPath(new URL('./default-plugins', import.meta.url));
+}
+
 /**
  * Resolves every on-disk location the core needs (SPEC section 4.1).
  *
- * @returns Absolute paths for userData, library, logs and migrations.
+ * @returns Absolute paths for userData, library, logs, migrations and plugins.
  */
 export function resolveAppPaths(): AppPaths {
   const userDataDir = app.getPath('userData');
@@ -32,6 +42,11 @@ export function resolveAppPaths(): AppPaths {
     libraryDir: path.join(userDataDir, 'library'),
     logsDir: path.join(userDataDir, 'logs'),
     migrationsFolder: fileURLToPath(new URL('./migrations', import.meta.url)),
+    pluginsDir: path.join(userDataDir, 'plugins'),
+    pluginDataDir: path.join(userDataDir, 'plugin-data'),
+    pluginTempDir: path.join(userDataDir, 'plugin-temp'),
+    defaultPluginsDir: defaultPluginsDir(),
+    pluginHostEntry: fileURLToPath(new URL('./plugin-host.js', import.meta.url)),
   };
 }
 

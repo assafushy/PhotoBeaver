@@ -11,6 +11,7 @@ export const plugins = sqliteTable('plugins', {
   health: text('health', { enum: ['ok', 'degraded', 'crashed', 'disabled_by_system'] })
     .notNull()
     .default('ok'),
+  installPath: text('install_path'),
   installedAt: integer('installed_at'),
   updatedAt: integer('updated_at'),
 });

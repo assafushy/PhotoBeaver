@@ -11,14 +11,18 @@
     "./manifest": "./photobeaver-plugin.json"
   },
   "scripts": {
+    "build": "pb-plugin build",
+    "pack": "pb-plugin pack",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
-    "@photobeaver/plugin-sdk": "workspace:*"
+    "@photobeaver/plugin-sdk": "workspace:*",
+    "chokidar": "^5.0.0"
   },
   "devDependencies": {
+    "@photobeaver/plugin-cli": "workspace:*",
     "@types/node": "^26.6.4",
     "vitest": "^5.0.3"
   }

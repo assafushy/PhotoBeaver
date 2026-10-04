@@ -9,7 +9,7 @@ import type { ConnectorRegistry } from '../connectors/registry';
 import type { EventSink } from '../events/event-sink';
 import type { JobQueue } from '../jobs/job-queue';
 import type { Scheduler } from '../scheduler/scheduler';
-import { parseSchedule } from '../scheduler/schedule';
+import { parseSchedule, type Schedule } from '../scheduler/schedule';
 
 const { sources, instances } = schema;
 
@@ -21,6 +21,7 @@ export interface SourceServiceDeps {
   events: EventSink;
   abortSync: (sourceId: string) => void;
   removeAssetFiles: (assetIds: string[]) => Promise<void>;
+  onSourceChanged?: (sourceId: string) => void;
   clock?: Clock;
 }
 
@@ -31,12 +32,30 @@ function displayLocation(configJson: string): string | null {
   return typeof root === 'string' ? root : null;
 }
 
+export const WATCH_SAFETY_INTERVAL_SEC = 24 * 60 * 60;
+
 interface NewSource {
   id: string;
   pluginId: string;
   displayName: string;
   config: Record<string, unknown>;
-  intervalSec: number;
+  schedule: Schedule;
+}
+
+/**
+ * Initial schedule for a new source: watch mode with a daily safety full scan
+ * when the connector can watch (SPEC 7.2, 9.2), otherwise polling at its default interval.
+ *
+ * @param connector - Manifest connector section.
+ * @returns The schedule.
+ */
+export function initialSchedule(connector: {
+  syncModes: string[];
+  defaultIntervalSec: number;
+}): Schedule {
+  if (connector.syncModes.includes('watch'))
+    return { mode: 'watch', intervalSec: WATCH_SAFETY_INTERVAL_SEC };
+  return { mode: 'poll', intervalSec: connector.defaultIntervalSec };
 }
 
 function validationMessage(errors: Record<string, string>): string {
@@ -51,7 +70,7 @@ function sourceRowValues(source: NewSource, now: number) {
     pluginId: source.pluginId,
     displayName: source.displayName,
     configJson: JSON.stringify(source.config),
-    scheduleJson: JSON.stringify({ intervalSec: source.intervalSec, mode: 'poll' }),
+    scheduleJson: JSON.stringify(source.schedule),
     nextRunAt: now,
     createdAt: now,
   };
@@ -123,13 +142,13 @@ export class SourceService {
       new AbortController().signal,
     );
     const setup = await entry.plugin.setupSource(ctx);
-    const intervalSec = entry.manifest.connector.defaultIntervalSec;
+    const schedule = initialSchedule(entry.manifest.connector);
     this.insert(
-      { id, pluginId: input.pluginId, displayName: setup.displayName, config, intervalSec },
+      { id, pluginId: input.pluginId, displayName: setup.displayName, config, schedule },
       userId,
     );
     this.deps.scheduler.syncNow(id, input.pluginId);
-    this.deps.events.emit('sources.changed', {});
+    this.changedSource(id);
     return this.summary(id);
   }
 
@@ -146,6 +165,7 @@ export class SourceService {
       this.deleteSource(txRaw as unknown as LibraryDb, source, userId),
     );
     await this.deps.removeAssetFiles(removed);
+    this.deps.onSourceChanged?.(sourceId);
     this.emitChanged();
   }
 
@@ -158,7 +178,7 @@ export class SourceService {
     this.require(sourceId);
     this.deps.db.update(sources).set({ syncState: 'paused' }).where(eq(sources.id, sourceId)).run();
     this.deps.abortSync(sourceId);
-    this.deps.events.emit('sources.changed', {});
+    this.changedSource(sourceId);
   }
 
   /**
@@ -174,7 +194,7 @@ export class SourceService {
       .where(eq(sources.id, sourceId))
       .run();
     this.deps.scheduler.syncNow(sourceId, source.pluginId);
-    this.deps.events.emit('sources.changed', {});
+    this.changedSource(sourceId);
   }
 
   /**
@@ -236,6 +256,11 @@ export class SourceService {
     });
   }
 
+  private changedSource(sourceId: string): void {
+    this.deps.onSourceChanged?.(sourceId);
+    this.deps.events.emit('sources.changed', {});
+  }
+
   private emitChanged(): void {
     this.deps.events.emit('sources.changed', {});
     this.deps.events.emit('library.changed', {});
@@ -267,6 +292,7 @@ export class SourceService {
       id: row.id,
       pluginId: row.pluginId,
       connectorName: connector?.manifest.name ?? row.pluginId,
+      connectorAvailable: connector !== undefined,
       displayName: row.displayName,
       location: displayLocation(row.configJson),
       syncState: row.syncState,

@@ -6,3 +6,4 @@ export * from './pb-api';
 export * from './events';
 export * from './event-names';
 export * from './config-schema';
+export * from './manifest';

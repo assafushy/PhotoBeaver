@@ -67,13 +67,13 @@ export class Scheduler {
   }
 
   /**
-   * Queues every due poll-mode source of an enabled, healthy plugin.
+   * Queues every due poll or watch source (watch sources get a safety full scan) of an enabled, healthy plugin.
    *
    * @returns Ids of sources that were queued.
    */
   tick(): string[] {
     const due = this.dueSources().filter(
-      (source) => parseSchedule(source.scheduleJson).mode === 'poll',
+      (source) => parseSchedule(source.scheduleJson).mode !== 'manual',
     );
     for (const source of due) this.enqueue(source.id, source.pluginId, PRIORITY.background);
     return due.map((source) => source.id);

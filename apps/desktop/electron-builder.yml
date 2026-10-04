@@ -5,7 +5,11 @@ directories:
   buildResources: build
 files:
   - out/**
+  - '!out/main/default-plugins/**'
   - package.json
+extraResources:
+  - from: out/main/default-plugins
+    to: plugins
 asarUnpack:
   - '**/node_modules/better-sqlite3/**'
   - '**/node_modules/sharp/**'

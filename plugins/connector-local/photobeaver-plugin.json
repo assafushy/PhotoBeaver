@@ -18,7 +18,7 @@
     "gpu": false
   },
   "connector": {
-    "syncModes": ["poll", "manual"],
+    "syncModes": ["watch", "poll", "manual"],
     "defaultIntervalSec": 3600,
     "minIntervalSec": 60,
     "supportsIncremental": false,
