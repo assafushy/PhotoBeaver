@@ -127,7 +127,7 @@ export class HostHandle {
       .request(HOST_METHODS.deactivate, {}, { timeoutMs: STOP_GRACE_MS })
       .catch(() => undefined);
     running.connection.peer.close();
-    setTimeout(() => running.host.kill(), STOP_GRACE_MS).unref?.();
+    running.host.kill();
     this.running = null;
   }
 
