@@ -1,4 +1,4 @@
-import type { PluginManifest } from '@photobeaver/shared/manifest';
+import { settingsSchemaOf, type PluginManifest } from '@photobeaver/shared/manifest';
 import type { PluginSummary, StagedPackageSummary } from '@photobeaver/shared';
 import type { LoadedPlugin } from './plugin-loader';
 import type { PluginRow } from './plugin-rows';
@@ -37,7 +37,7 @@ function runtimeOf(loaded: LoadedPlugin | undefined) {
 }
 
 function hasSettings(row: PluginRow, manifest: Partial<PluginManifest>): boolean {
-  return row.type === 'enricher' && Object.keys(manifest.configSchema?.properties ?? {}).length > 0;
+  return settingsSchemaOf({ ...manifest, type: row.type }) !== null;
 }
 
 /**

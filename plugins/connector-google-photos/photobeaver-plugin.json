@@ -1,0 +1,66 @@
+{
+  "id": "com.photobeaver.connector-google-photos",
+  "name": "Google Photos",
+  "version": "0.1.0",
+  "type": "connector",
+  "apiVersion": "1",
+  "main": "dist/index.js",
+  "description": "Import photos you pick in Google Photos (previews and metadata), or your full library at full resolution from a Google Takeout export.",
+  "author": { "name": "Photo Beaver" },
+  "license": "MIT",
+  "engines": { "photobeaver": ">=0.1.0" },
+  "default": { "enabledOnInstall": true },
+  "permissions": {
+    "network": [
+      "accounts.google.com",
+      "oauth2.googleapis.com",
+      "photospicker.googleapis.com",
+      "photos.google.com",
+      "*.googleusercontent.com"
+    ],
+    "filesystem": "user-selected",
+    "oauth": true,
+    "nativeModules": false,
+    "gpu": false
+  },
+  "connector": {
+    "syncModes": ["manual"],
+    "defaultIntervalSec": 86400,
+    "supportsIncremental": false,
+    "providesContentHash": false,
+    "rateLimit": { "requests": 50, "perSec": 1 },
+    "multipleSources": true
+  },
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "mode": {
+        "type": "string",
+        "enum": ["picker", "takeout"],
+        "default": "picker",
+        "title": "Import from"
+      },
+      "root": {
+        "type": "string",
+        "format": "directory",
+        "title": "Takeout folder",
+        "description": "Folder with your extracted Google Takeout export or its .zip files. Only for Takeout."
+      }
+    }
+  },
+  "settingsSchema": {
+    "type": "object",
+    "properties": {
+      "clientId": {
+        "type": "string",
+        "title": "OAuth client ID",
+        "description": "The client ID of your Google Cloud OAuth client (type Desktop app). The plugin README has a step-by-step guide."
+      },
+      "clientSecret": {
+        "type": "string",
+        "title": "OAuth client secret",
+        "description": "Google desktop clients have one; it is not confidential"
+      }
+    }
+  }
+}

@@ -45,6 +45,8 @@ export interface PbApi {
     connectors(): Promise<ConnectorInfo[]>;
     add(input: AddSourceInput): Promise<SourceSummary>;
     remove(id: string): Promise<null>;
+    reconnect(id: string, setupId?: string): Promise<SourceSummary>;
+    cancelSetup(setupId: string): Promise<null>;
     pickDirectory(): Promise<string | null>;
     syncNow(id: string): Promise<null>;
     pause(id: string): Promise<null>;

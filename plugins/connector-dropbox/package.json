@@ -1,0 +1,28 @@
+{
+  "name": "@photobeaver/connector-dropbox",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Index photos and videos from your Dropbox",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./manifest": "./photobeaver-plugin.json"
+  },
+  "scripts": {
+    "build": "pb-plugin build",
+    "pack": "pb-plugin pack",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@photobeaver/plugin-sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@photobeaver/plugin-cli": "workspace:*",
+    "@types/node": "^26.6.4",
+    "vitest": "^5.0.3"
+  }
+}

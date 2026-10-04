@@ -73,7 +73,7 @@ function syncCtx(
       authorize: async () => ({ accessToken: '' }),
       refresh: async () => ({ accessToken: '' }),
     },
-    ui: { pickDirectory: async () => null, notify: noop },
+    ui: { pickDirectory: async () => null, notify: noop, openExternal: async () => undefined },
     reportProgress: noop,
     isKnown: async (ids) => (
       asked.push(ids),

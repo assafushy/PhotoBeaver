@@ -16,7 +16,8 @@ import { handleMediaProtocol } from './protocol/pb-media';
 import { handleTileProtocol } from './protocol/pb-tiles';
 import { SessionService } from './session/session-service';
 import { utilityProcessLauncher } from './plugins/utility-launcher';
-import { openExternalUrl, pickDirectory, pickPluginPackage } from './shell-actions';
+import { safeStorageCipher } from './secrets/safe-storage-cipher';
+import { openBrowser, openExternalUrl, pickDirectory, pickPluginPackage } from './shell-actions';
 import { createWindowEventSink } from './window-events';
 
 export interface App {
@@ -62,6 +63,8 @@ function createCore(library: OpenLibrary, paths: AppPaths, logger: CoreLogger): 
     pickDirectory,
     syncBatchDelayMs: devSyncBatchDelayMs(),
     isOnBattery: () => powerMonitor.isOnBatteryPower(),
+    secretCipher: safeStorageCipher(),
+    openExternal: openBrowser,
   });
 }
 

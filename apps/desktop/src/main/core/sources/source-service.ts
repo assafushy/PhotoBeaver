@@ -1,3 +1,5 @@
+import { rm } from 'node:fs/promises';
+import path from 'node:path';
 import { schema, type LibraryDb } from '@photobeaver/db';
 import { validateConfig, type ConnectorInfo, type SourceSummary } from '@photobeaver/shared';
 import { count, eq, isNull } from 'drizzle-orm';
@@ -5,7 +7,9 @@ import { ulid } from 'ulid';
 import { writeAudit } from '../audit';
 import { deleteOrphanAssets } from '../assets/purge';
 import { systemClock, type Clock } from '../clock';
-import type { ConnectorRegistry } from '../connectors/registry';
+import type { ConnectorEntry, ConnectorRegistry } from '../connectors/registry';
+import { sourceSecretRef, type SecretsService } from '../secrets/secrets-service';
+import { abortable, SetupRuns } from './setup-runs';
 import type { EventSink } from '../events/event-sink';
 import type { JobQueue } from '../jobs/job-queue';
 import type { Scheduler } from '../scheduler/scheduler';
@@ -22,7 +26,28 @@ export interface SourceServiceDeps {
   abortSync: (sourceId: string) => void;
   removeAssetFiles: (assetIds: string[]) => Promise<void>;
   onSourceChanged?: (sourceId: string) => void;
+  secrets: SecretsService;
+  pluginDataRoot: string;
   clock?: Clock;
+}
+
+/**
+ * Per-source folder inside a plugin's data folder. Plugins keep source-specific
+ * files (such as Google Photos previews) under `<dataDir>/sources/<sourceId>`,
+ * and core deletes it when the source is removed.
+ *
+ * @param pluginDataRoot - Root of all plugin data folders.
+ * @param pluginId - Plugin id.
+ * @param sourceId - Source id.
+ * @returns The folder path.
+ */
+export const sourceDataDir = (pluginDataRoot: string, pluginId: string, sourceId: string): string =>
+  path.join(pluginDataRoot, pluginId, 'sources', sourceId);
+
+interface SetupTarget {
+  entry: ConnectorEntry;
+  source: { id: string; pluginId: string; config: Record<string, unknown> };
+  setupId?: string;
 }
 
 type SourceRow = typeof sources.$inferSelect;
@@ -70,6 +95,7 @@ function sourceRowValues(source: NewSource, now: number) {
     pluginId: source.pluginId,
     displayName: source.displayName,
     configJson: JSON.stringify(source.config),
+    secretRef: sourceSecretRef(source.id),
     scheduleJson: JSON.stringify(source.schedule),
     nextRunAt: now,
     createdAt: now,
@@ -90,6 +116,7 @@ function assetIdsOfSource(db: LibraryDb, sourceId: string): string[] {
  */
 export class SourceService {
   private readonly clock: Clock;
+  private readonly setups = new SetupRuns();
 
   constructor(private readonly deps: SourceServiceDeps) {
     this.clock = deps.clock ?? systemClock;
@@ -98,7 +125,7 @@ export class SourceService {
   /**
    * Installed connectors that can be added as sources.
    *
-   * @returns Connector id, name, description and config schema.
+   * @returns Connector id, name, description, config schema and whether setup signs in.
    */
   connectors(): ConnectorInfo[] {
     return this.deps.registry.list().map(({ manifest }) => ({
@@ -106,6 +133,7 @@ export class SourceService {
       name: manifest.name,
       description: manifest.description ?? '',
       configSchema: manifest.configSchema ?? {},
+      usesOAuth: manifest.permissions?.oauth === true,
     }));
   }
 
@@ -132,24 +160,90 @@ export class SourceService {
    * @returns The new source.
    */
   async add(
-    input: { pluginId: string; config: Record<string, unknown> },
+    input: { pluginId: string; config: Record<string, unknown>; setupId?: string },
     userId: string,
   ): Promise<SourceSummary> {
     const { entry, config } = this.validated(input);
     const id = ulid(this.clock());
-    const ctx = this.deps.registry.sourceContext(
-      { id, pluginId: input.pluginId, config },
-      new AbortController().signal,
+    const source = { id, pluginId: input.pluginId, config };
+    const setup = await this.runSetup({ entry, source, setupId: input.setupId }).catch(
+      (error: unknown) => {
+        this.deps.secrets.delete(sourceSecretRef(id));
+        throw error;
+      },
     );
-    const setup = await entry.plugin.setupSource(ctx);
     const schedule = initialSchedule(entry.manifest.connector);
-    this.insert(
-      { id, pluginId: input.pluginId, displayName: setup.displayName, config, schedule },
-      userId,
-    );
+    this.insert({ ...source, displayName: setup.displayName, schedule }, userId);
     this.deps.scheduler.syncNow(id, input.pluginId);
     this.changedSource(id);
     return this.summary(id);
+  }
+
+  /**
+   * Runs the connector's setup again for an existing source (SPEC 6.2: "Reconnect"),
+   * replaces its secret and syncs it. The previous secret stays if setup fails.
+   *
+   * @param sourceId - Source id.
+   * @param setupId - Id the UI can cancel with.
+   * @param userId - Acting user, for the audit log.
+   * @returns The updated source.
+   */
+  async reconnect(
+    sourceId: string,
+    setupId: string | undefined,
+    userId: string,
+  ): Promise<SourceSummary> {
+    const row = this.require(sourceId);
+    const { entry, config } = this.validated({
+      pluginId: row.pluginId,
+      config: JSON.parse(row.configJson),
+    });
+    const source = { id: sourceId, pluginId: row.pluginId, config };
+    const setup = await this.runSetup({ entry, source, setupId });
+    this.markReconnected(sourceId, setup.displayName, userId);
+    this.deps.scheduler.syncNow(sourceId, row.pluginId);
+    this.changedSource(sourceId);
+    return this.summary(sourceId);
+  }
+
+  /**
+   * Cancels a setup that is waiting, for example for a browser sign-in.
+   *
+   * @param setupId - Id passed to `add` or `reconnect`.
+   */
+  cancelSetup(setupId: string): void {
+    this.setups.cancel(setupId);
+  }
+
+  private async runSetup({ entry, source, setupId }: SetupTarget) {
+    const signal = this.setups.begin(setupId);
+    try {
+      const ctx = this.deps.registry.sourceContext(source, signal);
+      const setup = await abortable(entry.plugin.setupSource(ctx), signal);
+      if (setup.secret) this.deps.secrets.set(sourceSecretRef(source.id), setup.secret);
+      return setup;
+    } finally {
+      this.setups.end(setupId);
+    }
+  }
+
+  private markReconnected(sourceId: string, displayName: string, userId: string): void {
+    this.deps.db
+      .update(sources)
+      .set({
+        displayName,
+        syncState: 'idle',
+        lastError: null,
+        consecutiveFailures: 0,
+        nextRunAt: this.clock(),
+      })
+      .where(eq(sources.id, sourceId))
+      .run();
+    writeAudit(
+      this.deps.db,
+      { userId, action: 'source.reconnect', targetType: 'source', targetId: sourceId, details: {} },
+      this.clock(),
+    );
   }
 
   /**
@@ -165,6 +259,10 @@ export class SourceService {
       this.deleteSource(txRaw as unknown as LibraryDb, source, userId),
     );
     await this.deps.removeAssetFiles(removed);
+    await rm(sourceDataDir(this.deps.pluginDataRoot, source.pluginId, sourceId), {
+      recursive: true,
+      force: true,
+    });
     this.deps.onSourceChanged?.(sourceId);
     this.emitChanged();
   }
@@ -222,6 +320,9 @@ export class SourceService {
     const candidates = assetIdsOfSource(tx, source.id);
     this.deps.queue.deleteQueued('source_id', source.id);
     tx.delete(sources).where(eq(sources.id, source.id)).run();
+    tx.delete(schema.secrets)
+      .where(eq(schema.secrets.ref, source.secretRef ?? sourceSecretRef(source.id)))
+      .run();
     writeAudit(
       tx,
       {

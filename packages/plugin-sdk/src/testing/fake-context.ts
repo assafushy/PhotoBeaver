@@ -30,6 +30,8 @@ export interface FakeRecorder {
   notifications: Notification[];
   storage: Map<string, unknown>;
   secret: Record<string, unknown> | undefined;
+  oauth: { kind: 'authorize' | 'refresh'; options: object }[];
+  opened: string[];
 }
 
 export interface FakeContextOptions {
@@ -42,6 +44,8 @@ export interface FakeContextOptions {
   dataDir?: string;
   settings?: unknown;
   fetch?: typeof fetch;
+  secret?: Record<string, unknown>;
+  oauth?: Partial<SourceContext<unknown>['oauth']>;
 }
 
 export type FakeSourceContext<Config> = SourceContext<Config> & { recorded: FakeRecorder };
@@ -54,7 +58,15 @@ const DEFAULT_TOKENS: OAuthTokens = {
 };
 
 export function emptyRecorder(): FakeRecorder {
-  return { logs: [], progress: [], notifications: [], storage: new Map(), secret: undefined };
+  return {
+    logs: [],
+    progress: [],
+    notifications: [],
+    storage: new Map(),
+    secret: undefined,
+    oauth: [],
+    opened: [],
+  };
 }
 
 export function recordingLogger(lines: LogLine[]): Logger {
@@ -83,20 +95,33 @@ function fakeUi(recorded: FakeRecorder, options: FakeContextOptions): SourceCont
   return {
     pickDirectory: async () => options.pickDirectory ?? null,
     notify: (msg, level) => void recorded.notifications.push({ msg, level }),
+    openExternal: async (url) => void recorded.opened.push(url),
   };
 }
 
-function fakeOAuth(options: FakeContextOptions): SourceContext<unknown>['oauth'] {
+function fakeOAuth(
+  recorded: FakeRecorder,
+  options: FakeContextOptions,
+): SourceContext<unknown>['oauth'] {
   const tokens = options.oauthTokens ?? DEFAULT_TOKENS;
-  return { authorize: async () => ({ ...tokens }), refresh: async () => ({ ...tokens }) };
+  const authorize = options.oauth?.authorize ?? (async () => ({ ...tokens }));
+  const refresh = options.oauth?.refresh ?? (async () => ({ ...tokens }));
+  return {
+    authorize: (opts) => (
+      recorded.oauth.push({ kind: 'authorize', options: opts }),
+      authorize(opts)
+    ),
+    refresh: (opts) => (recorded.oauth.push({ kind: 'refresh', options: opts }), refresh(opts)),
+  };
 }
 
 /**
- * Builds a fake SourceContext: in-memory storage and secret, fixed OAuth tokens,
- * a configurable directory picker and a logger that records lines.
+ * Builds a fake SourceContext: in-memory storage and secret (optionally pre-seeded),
+ * OAuth that returns fixed tokens unless overridden, a configurable directory
+ * picker, and a logger. OAuth calls and opened URLs are recorded.
  *
  * @param config - Source config passed to the plugin.
- * @param options - Overrides for ids, picker result, tokens, signal and data dir.
+ * @param options - Overrides for ids, picker result, tokens, fetch, secret, signal and data dir.
  * @returns The context plus a `recorded` object with everything the plugin did.
  */
 export function createFakeSourceContext<Config>(
@@ -104,6 +129,7 @@ export function createFakeSourceContext<Config>(
   options: FakeContextOptions = {},
 ): FakeSourceContext<Config> {
   const recorded = emptyRecorder();
+  recorded.secret = options.secret === undefined ? undefined : { ...options.secret };
   return {
     pluginId: options.pluginId ?? 'com.example.test-plugin',
     sourceId: options.sourceId ?? 'test-source',
@@ -115,7 +141,7 @@ export function createFakeSourceContext<Config>(
     settings: async <T>() => (options.settings ?? {}) as T,
     signal: options.signal ?? new AbortController().signal,
     secret: fakeSecret(recorded),
-    oauth: fakeOAuth(options),
+    oauth: fakeOAuth(recorded, options),
     ui: fakeUi(recorded, options),
     recorded,
   };

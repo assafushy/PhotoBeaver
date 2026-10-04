@@ -101,11 +101,15 @@ export const connectorInfoSchema = z.object({
   name: z.string(),
   description: z.string(),
   configSchema: z.custom<ConfigSchema>((value) => typeof value === 'object' && value !== null),
+  usesOAuth: z.boolean(),
 });
+
+const setupIdSchema = z.string().min(1).max(100);
 
 export const addSourceInputSchema = z.object({
   pluginId: z.string().min(1),
   config: z.record(z.string(), z.unknown()),
+  setupId: setupIdSchema.optional(),
 });
 
 export const assetInstanceSchema = z.object({
@@ -281,6 +285,16 @@ export const IPC_CONTRACT = {
     output: sourceSummarySchema,
   }),
   'sources.remove': channel({ requires: 'sources.manage', input: idInput, output: nothing }),
+  'sources.reconnect': channel({
+    requires: 'sources.manage',
+    input: z.object({ id: z.string(), setupId: setupIdSchema.optional() }),
+    output: sourceSummarySchema,
+  }),
+  'sources.cancelSetup': channel({
+    requires: 'sources.manage',
+    input: z.object({ setupId: setupIdSchema }),
+    output: nothing,
+  }),
   'sources.pickDirectory': channel({
     requires: 'sources.manage',
     input: emptyInput,

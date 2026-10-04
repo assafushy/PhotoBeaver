@@ -11,7 +11,8 @@
     "./rpc": "./src/rpc/index.ts",
     "./pbplugin": "./src/pbplugin.ts",
     "./dev-socket": "./src/dev-socket.ts",
-    "./manifest": "./src/manifest.ts"
+    "./manifest": "./src/manifest.ts",
+    "./host-allowlist": "./src/host-allowlist.ts"
   },
   "scripts": {
     "lint": "eslint .",

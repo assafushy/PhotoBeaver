@@ -2,7 +2,7 @@ import http from 'node:http';
 import https from 'node:https';
 import net from 'node:net';
 import tls from 'node:tls';
-import { assertHostAllowed } from './host-allowlist';
+import { assertHostAllowed } from '@photobeaver/shared/host-allowlist';
 
 type AnyFn = (...args: unknown[]) => unknown;
 

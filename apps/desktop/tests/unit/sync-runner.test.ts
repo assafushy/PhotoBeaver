@@ -10,7 +10,13 @@ import { BatchWriter } from '../../src/main/core/sync/batch-writer';
 import { SyncRunner } from '../../src/main/core/sync/sync-runner';
 import { queryLibraryPage } from '../../src/main/library/library-service';
 import { fakeConnector, type FakeSource } from './fake-connector';
-import { insertSource, openTempLibrary, silentCoreLog, type TempLibrary } from './helpers';
+import {
+  insertSource,
+  openTempLibrary,
+  silentCoreLog,
+  testRegistryDeps,
+  type TempLibrary,
+} from './helpers';
 
 const files = (n: number, etag = 'v1') =>
   Array.from({ length: n }, (_, i) => ({ id: `f${String(i).padStart(3, '0')}`, etag }));
@@ -33,12 +39,7 @@ describe('SyncRunner', () => {
     temp = await openTempLibrary();
     state = { files: files(5), batchSize: 2 };
     const entry = fakeConnector(state);
-    const registry = new ConnectorRegistry([entry], {
-      db: db(),
-      pluginDataRoot: temp.dir,
-      logger: silentCoreLog,
-      pickDirectory: async () => null,
-    });
+    const registry = new ConnectorRegistry([entry], testRegistryDeps(temp, temp.dir));
     registry.registerBuiltins(0);
     insertSource(temp, { id: 's', pluginId: 'fake' });
     queue = new JobQueue(temp.library.sqlite);

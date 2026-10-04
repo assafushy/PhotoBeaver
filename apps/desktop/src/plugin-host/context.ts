@@ -1,4 +1,10 @@
-import type { Logger, PluginContext, SourceContext, SyncContext } from '@photobeaver/plugin-sdk';
+import type {
+  Logger,
+  OAuthTokens,
+  PluginContext,
+  SourceContext,
+  SyncContext,
+} from '@photobeaver/plugin-sdk';
 import {
   CORE_METHODS,
   type HostInit,
@@ -13,10 +19,6 @@ export interface HostServices {
   fetch: typeof fetch;
   grants: FolderGrants;
 }
-
-const notAvailable = (feature: string) => async (): Promise<never> => {
-  throw new Error(`${feature} is not available until a later milestone`);
-};
 
 function logger(peer: RpcPeer): Logger {
   const send = (level: 'debug' | 'info' | 'warn' | 'error') => (msg: string, data?: object) =>
@@ -60,6 +62,36 @@ async function pickDirectory(services: HostServices, contextId: string): Promise
   return dir;
 }
 
+type Source = SourceContext<unknown>;
+
+function secretProxy(peer: RpcPeer, contextId: string): Source['secret'] {
+  return {
+    get: async () =>
+      ((await peer.request(CORE_METHODS.secretGet, { contextId })) ?? undefined) as
+        Record<string, unknown> | undefined,
+    set: async (value) => void (await peer.request(CORE_METHODS.secretSet, { contextId, value })),
+  };
+}
+
+function oauthProxy(peer: RpcPeer, contextId: string, signal: AbortSignal): Source['oauth'] {
+  const call = (method: string, options: object) =>
+    peer.request(method, { contextId, options }, { signal }) as Promise<OAuthTokens>;
+  return {
+    authorize: (options) => call(CORE_METHODS.oauthAuthorize, options),
+    refresh: (options) => call(CORE_METHODS.oauthRefresh, options),
+  };
+}
+
+function uiProxy(services: HostServices, contextId: string): Source['ui'] {
+  const { peer } = services;
+  return {
+    pickDirectory: () => pickDirectory(services, contextId),
+    notify: (msg, level = 'info') => peer.notify(CORE_METHODS.notify, { contextId, msg, level }),
+    openExternal: async (url) =>
+      void (await peer.request(CORE_METHODS.openExternal, { contextId, url })),
+  };
+}
+
 /**
  * Per-source `ctx`. `contextId` routes callbacks to the core call that created it.
  *
@@ -73,24 +105,14 @@ export function sourceContext(
   call: SourceCall,
   signal: AbortSignal,
 ): SourceContext<unknown> {
-  const { peer } = services;
-  const { contextId } = call;
   call.grantedDirs?.forEach((dir) => services.grants.add(dir));
   return {
     ...pluginContext(services, signal),
     sourceId: call.sourceId,
     config: call.config,
-    secret: {
-      get: async () =>
-        ((await peer.request(CORE_METHODS.secretGet, { contextId })) ?? undefined) as
-          Record<string, unknown> | undefined,
-      set: async (value) => void (await peer.request(CORE_METHODS.secretSet, { contextId, value })),
-    },
-    oauth: { authorize: notAvailable('OAuth'), refresh: notAvailable('OAuth') },
-    ui: {
-      pickDirectory: () => pickDirectory(services, contextId),
-      notify: (msg, level = 'info') => peer.notify(CORE_METHODS.notify, { contextId, msg, level }),
-    },
+    secret: secretProxy(services.peer, call.contextId),
+    oauth: oauthProxy(services.peer, call.contextId, signal),
+    ui: uiProxy(services, call.contextId),
   };
 }
 

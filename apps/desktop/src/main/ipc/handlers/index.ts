@@ -30,11 +30,19 @@ function registerLibraryHandlers(registry: IpcRegistry, deps: HandlerDeps): void
   });
 }
 
+function registerSourceSetupHandlers(registry: IpcRegistry, { sources }: HandlerDeps): void {
+  registry.handle('sources.add', (input, ctx) => sources.add(input, ctx.user.id));
+  registry.handle('sources.reconnect', ({ id, setupId }, ctx) =>
+    sources.reconnect(id, setupId, ctx.user.id),
+  );
+  registry.handle('sources.cancelSetup', ({ setupId }) => (sources.cancelSetup(setupId), null));
+}
+
 function registerSourceHandlers(registry: IpcRegistry, deps: HandlerDeps): void {
   const { sources } = deps;
+  registerSourceSetupHandlers(registry, deps);
   registry.handle('sources.list', () => sources.list());
   registry.handle('sources.connectors', () => sources.connectors());
-  registry.handle('sources.add', (input, ctx) => sources.add(input, ctx.user.id));
   registry.handle(
     'sources.remove',
     async ({ id }, ctx) => (await sources.remove(id, ctx.user.id), null),
