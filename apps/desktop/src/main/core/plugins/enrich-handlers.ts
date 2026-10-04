@@ -26,13 +26,16 @@ function registerInputCall(peer: RpcPeer, contexts: CallContexts): void {
   );
 }
 
-function registerIdentityCalls(peer: RpcPeer, contexts: CallContexts): void {
-  const api = (raw: unknown) => contexts.enrich((raw as { contextId: string }).contextId).assets;
+function identityApi(contexts: CallContexts, raw: unknown) {
+  return contexts.enrich((raw as { contextId: string }).contextId).assets;
+}
+
+function registerLookupCalls(peer: RpcPeer, contexts: CallContexts): void {
   peer.handle(
     CORE_METHODS.findByIdentity,
     (raw) => {
       const { keys, excludeAssetId } = raw as { keys: string[]; excludeAssetId?: string };
-      return api(raw).findByIdentity(keys, { excludeAssetId });
+      return identityApi(contexts, raw).findByIdentity(keys, { excludeAssetId });
     },
     validatorOf(findByIdentitySchema),
   );
@@ -40,22 +43,27 @@ function registerIdentityCalls(peer: RpcPeer, contexts: CallContexts): void {
     CORE_METHODS.listIdentity,
     (raw) => {
       const { prefix, cursor } = raw as { prefix: string; cursor?: string };
-      return api(raw).listIdentity(prefix, cursor);
+      return identityApi(contexts, raw).listIdentity(prefix, cursor);
     },
     validatorOf(listIdentitySchema),
   );
+}
+
+function registerDuplicateCalls(peer: RpcPeer, contexts: CallContexts): void {
   peer.handle(
     CORE_METHODS.isMergeBlocked,
     (raw) => {
       const { a, b } = raw as { a: string; b: string };
-      return api(raw).isMergeBlocked(a, b);
+      return identityApi(contexts, raw).isMergeBlocked(a, b);
     },
     validatorOf(mergeBlockedSchema),
   );
   peer.handle(
     CORE_METHODS.suggestDuplicates,
     (raw) =>
-      api(raw).suggestDuplicates((raw as { suggestions: DuplicateSuggestion[] }).suggestions),
+      identityApi(contexts, raw).suggestDuplicates(
+        (raw as { suggestions: DuplicateSuggestion[] }).suggestions,
+      ),
     validatorOf(suggestDuplicatesSchema),
   );
 }
@@ -70,5 +78,6 @@ function registerIdentityCalls(peer: RpcPeer, contexts: CallContexts): void {
  */
 export function registerEnrichHandlers(peer: RpcPeer, contexts: CallContexts): void {
   registerInputCall(peer, contexts);
-  registerIdentityCalls(peer, contexts);
+  registerLookupCalls(peer, contexts);
+  registerDuplicateCalls(peer, contexts);
 }

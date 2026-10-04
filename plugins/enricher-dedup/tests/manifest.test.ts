@@ -20,7 +20,7 @@ describe('manifest', () => {
         dependsOn: ['com.photobeaver.enricher-metadata'],
         produces: ['identity', 'duplicates'],
         resourceClass: 'light',
-        concurrency: 2,
+        concurrency: 1,
         runOn: ['new', 'changed'],
       },
     });

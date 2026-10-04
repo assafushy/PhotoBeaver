@@ -18,7 +18,10 @@ describe('IpcRegistry', () => {
     registry.handle('library.query', handler);
     const result = await transport.invoke('library.query', { limit: 10 });
     expect(result).toEqual({ ok: true, value: EMPTY_PAGE });
-    expect(handler).toHaveBeenCalledWith({ cursor: null, limit: 10 }, expect.anything());
+    expect(handler).toHaveBeenCalledWith(
+      { cursor: null, limit: 10, filter: {} },
+      expect.anything(),
+    );
   });
 
   it('denies a session that lacks the required permission', async () => {
@@ -60,6 +63,6 @@ describe('IpcRegistry', () => {
   it('reports channels that have no handler', () => {
     const { registry } = setup(userWithRole('admin'));
     registry.handle('session.current', (_i, ctx) => ctx.user);
-    expect(() => registry.assertComplete()).toThrow(/app\.info, library\.query, assets\.get/);
+    expect(() => registry.assertComplete()).toThrow(/app\.info, library\.query, library\.facets/);
   });
 });

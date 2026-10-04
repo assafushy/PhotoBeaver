@@ -28,6 +28,18 @@ function storedManifest(row: PluginRow): Partial<PluginManifest> {
   }
 }
 
+function runtimeOf(loaded: LoadedPlugin | undefined) {
+  return {
+    running: loaded?.handle.isRunning ?? false,
+    pid: loaded?.handle.pid ?? null,
+    restarts: loaded?.handle.restarts ?? 0,
+  };
+}
+
+function hasSettings(row: PluginRow, manifest: Partial<PluginManifest>): boolean {
+  return row.type === 'enricher' && Object.keys(manifest.configSchema?.properties ?? {}).length > 0;
+}
+
 /**
  * What the Plugins screen shows for one plugin.
  *
@@ -49,14 +61,11 @@ export function pluginSummary(input: SummaryInput): PluginSummary {
     installSource: row.installSource,
     isDefault: input.isDefault,
     permissions: manifest.permissions ?? null,
-    running: loaded?.handle.isRunning ?? false,
-    pid: loaded?.handle.pid ?? null,
-    restarts: loaded?.handle.restarts ?? 0,
+    ...runtimeOf(loaded),
     sourceCount: input.sourceCount,
     devPath: row.installSource === 'dev' ? row.installPath : null,
     queueSize: input.queueSize,
-    hasSettings:
-      row.type === 'enricher' && Object.keys(manifest.configSchema?.properties ?? {}).length > 0,
+    hasSettings: hasSettings(row, manifest),
   };
 }
 

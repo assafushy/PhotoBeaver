@@ -1,8 +1,11 @@
 import { useTranslation } from 'react-i18next';
 import { NavLink, Outlet } from 'react-router-dom';
+import { usePlugins } from '../plugins/use-plugins';
 
 const NAV_ITEMS = [
   { to: '/library', key: 'nav.library' },
+  { to: '/map', key: 'nav.map' },
+  { to: '/duplicates', key: 'nav.duplicates', needsMerge: true },
   { to: '/sources', key: 'nav.sources' },
   { to: '/plugins', key: 'nav.plugins' },
   { to: '/activity', key: 'nav.activity' },
@@ -18,12 +21,19 @@ function navClass({ isActive }: { isActive: boolean }): string {
   return `${base} ${state}`;
 }
 
+function useHasMergePlugin(): boolean {
+  const { data } = usePlugins();
+  return (data ?? []).some((p) => p.enabled && p.permissions?.assets === 'merge');
+}
+
 function NavList() {
   const { t } = useTranslation();
+  const hasMerge = useHasMergePlugin();
+  const items = NAV_ITEMS.filter((item) => !('needsMerge' in item) || hasMerge);
   return (
     <nav aria-label={t('nav.label')}>
       <ul className="space-y-1">
-        {NAV_ITEMS.map((item) => (
+        {items.map((item) => (
           <li key={item.to}>
             <NavLink to={item.to} className={navClass}>
               {t(item.key)}

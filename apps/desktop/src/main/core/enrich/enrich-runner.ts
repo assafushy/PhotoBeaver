@@ -1,6 +1,6 @@
 import { rm } from 'node:fs/promises';
 import type { LibraryDb } from '@photobeaver/db';
-import type { AssetView } from '@photobeaver/plugin-sdk';
+import type { AssetView, EnrichContext } from '@photobeaver/plugin-sdk';
 import { enrichmentResultSchema, type EnrichOutcome } from '@photobeaver/shared/rpc';
 import { systemClock, type Clock } from '../clock';
 import type { CoreLog } from '../connectors/registry';
@@ -9,7 +9,7 @@ import type { JobContext } from '../jobs/lane';
 import type { JobRow } from '../jobs/job-types';
 import { isHostCrashedError } from '../plugins/host-errors';
 import type { JobQueue } from '../jobs/job-queue';
-import { applyEnrichmentResult } from './apply-result';
+import { applyEnrichmentResult, type ApplyContext } from './apply-result';
 import { collectBatch, outcomesByAsset, settleExtras, supportsBatch } from './batch';
 import { buildAssetView } from './asset-view';
 import { createEnrichContext, type EnrichContextDeps } from './enrich-context';
@@ -52,42 +52,42 @@ export class EnrichRunner {
 
   private async enrichBatch(entry: EnricherEntry, job: JobRow, signal: AbortSignal): Promise<void> {
     const { extras, views } = collectBatch(this.deps.db, this.deps.queue, entry, job);
-    const tempFiles: string[] = [];
-    const ctx = createEnrichContext(
-      this.deps.context,
-      { manifest: entry.manifest, assetIds: new Set(views.map((v) => v.id)) },
-      signal,
-      tempFiles,
-    );
-    try {
-      const outcomes = outcomesByAsset(
-        views,
-        views.length ? await entry.client.enrichBatch!(ctx, views) : [],
-      );
-      outcomes.forEach((outcome, assetId) => this.settle(entry, assetId, outcome));
-      settleExtras(this.deps.queue, extras, null);
-    } catch (error) {
-      settleExtras(this.deps.queue, extras, error);
-      throw error;
-    } finally {
-      await Promise.all(tempFiles.map((file) => rm(file, { force: true })));
-    }
+    await this.withContext(entry, views, signal, async (ctx) => {
+      try {
+        const results = views.length ? await entry.client.enrichBatch!(ctx, views) : [];
+        outcomesByAsset(views, results).forEach((outcome, assetId) =>
+          this.settle(entry, assetId, outcome),
+        );
+        settleExtras(this.deps.queue, extras, null);
+      } catch (error) {
+        settleExtras(this.deps.queue, extras, error);
+        throw error;
+      }
+    });
   }
 
   private async enrichOne(entry: EnricherEntry, job: JobRow, signal: AbortSignal): Promise<void> {
     const view = buildAssetView(this.deps.db, job.asset_id!, entry.manifest.enricher.dependsOn);
     if (!view) return;
+    await this.withContext(entry, [view], signal, async (ctx) => {
+      try {
+        this.settle(entry, view.id, await entry.client.enrich(ctx, view));
+      } catch (error) {
+        this.onError(entry, job, view, error);
+      }
+    });
+  }
+
+  private async withContext(
+    entry: EnricherEntry,
+    views: readonly AssetView[],
+    signal: AbortSignal,
+    work: (ctx: EnrichContext<unknown>) => Promise<void>,
+  ): Promise<void> {
     const tempFiles: string[] = [];
-    const ctx = createEnrichContext(
-      this.deps.context,
-      { manifest: entry.manifest, assetIds: new Set([view.id]) },
-      signal,
-      tempFiles,
-    );
+    const scope = { manifest: entry.manifest, assetIds: new Set(views.map((v) => v.id)) };
     try {
-      this.settle(entry, view.id, await entry.client.enrich(ctx, view));
-    } catch (error) {
-      this.onError(entry, job, view, error);
+      await work(createEnrichContext(this.deps.context, scope, signal, tempFiles));
     } finally {
       await Promise.all(tempFiles.map((file) => rm(file, { force: true })));
     }
@@ -100,32 +100,35 @@ export class EnrichRunner {
   }
 
   private apply(entry: EnricherEntry, assetId: string, raw: unknown): void {
-    const parsed = enrichmentResultSchema.safeParse(raw);
-    if (!parsed.success) {
-      this.deps.logger.warn(
-        { pluginId: entry.manifest.id, assetId, issues: parsed.error.issues.length },
-        'Dropped invalid enrichment result',
-      );
-      return this.deps.scheduler.recordRun(assetId, entry, 'failed', 'Invalid result');
-    }
-    const result = parsed.data;
+    const result = this.parseResult(entry, assetId, raw);
+    if (!result) return this.deps.scheduler.recordRun(assetId, entry, 'failed', 'Invalid result');
     const canMerge = entry.manifest.permissions.assets === 'merge';
-    const rank = entry.manifest.enricher.produces.includes('exif') ? 'exif' : 'enricher';
-    applyEnrichmentResult(
-      {
-        db: this.deps.db,
-        assetId,
-        pluginId: entry.manifest.id,
-        pluginVersion: entry.manifest.version,
-        rank,
-        canMerge,
-        now: this.now(),
-      },
-      result,
-    );
+    applyEnrichmentResult(this.applyContext(entry, assetId, canMerge), result);
     this.deps.scheduler.recordRun(assetId, entry, 'done');
     if (canMerge) this.applyIdentityRequests(entry, assetId, result);
     this.deps.events.emit('library.changed', {});
+  }
+
+  private parseResult(entry: EnricherEntry, assetId: string, raw: unknown) {
+    const parsed = enrichmentResultSchema.safeParse(raw);
+    if (parsed.success) return parsed.data;
+    this.deps.logger.warn(
+      { pluginId: entry.manifest.id, assetId, issues: parsed.error.issues.length },
+      'Dropped invalid enrichment result',
+    );
+    return null;
+  }
+
+  private applyContext(entry: EnricherEntry, assetId: string, canMerge: boolean): ApplyContext {
+    return {
+      db: this.deps.db,
+      assetId,
+      pluginId: entry.manifest.id,
+      pluginVersion: entry.manifest.version,
+      rank: entry.manifest.enricher.produces.includes('exif') ? 'exif' : 'enricher',
+      canMerge,
+      now: this.now(),
+    };
   }
 
   private applyIdentityRequests(

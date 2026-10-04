@@ -2,6 +2,13 @@ import type { PbEventName, PbEvents } from './events';
 import type {
   AddSourceInput,
   AppInfo,
+  AppSettings,
+  DuplicateGroup,
+  GeoPoints,
+  LibraryFacets,
+  LibraryFilter,
+  MergeRecord,
+  PluginSettingsView,
   AssetDetail,
   ConnectorInfo,
   LibraryPage,
@@ -17,7 +24,18 @@ export type Unsubscribe = () => void;
 export interface PbApi {
   app: { info(): Promise<AppInfo> };
   session: { current(): Promise<SessionUser> };
-  library: { query(input: LibraryQueryInput): Promise<LibraryPage> };
+  library: {
+    query(input: LibraryQueryInput): Promise<LibraryPage>;
+    facets(): Promise<LibraryFacets>;
+    geoPoints(filter: LibraryFilter): Promise<GeoPoints>;
+  };
+  duplicates: {
+    list(): Promise<DuplicateGroup[]>;
+    merge(id: string, keepAssetId: string): Promise<null>;
+    dismiss(id: string): Promise<null>;
+  };
+  merges: { recent(): Promise<MergeRecord[]>; undo(id: string): Promise<null> };
+  settings: { get(): Promise<AppSettings>; set(patch: Partial<AppSettings>): Promise<null> };
   assets: {
     get(id: string): Promise<AssetDetail>;
     openInSource(instanceId: string): Promise<null>;
@@ -47,6 +65,9 @@ export interface PbApi {
     setDeveloperMode(enabled: boolean): Promise<null>;
     loadUnpacked(): Promise<PluginSummary | null>;
     reload(id: string): Promise<null>;
+    getSettings(id: string): Promise<PluginSettingsView>;
+    setSettings(id: string, values: Record<string, unknown>): Promise<null>;
+    rerun(id: string): Promise<null>;
   };
   events: {
     on<K extends PbEventName>(name: K, listener: (payload: PbEvents[K]) => void): Unsubscribe;

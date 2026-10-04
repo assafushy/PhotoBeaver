@@ -8,6 +8,7 @@ import type { JobQueue } from '../jobs/job-queue';
 import type { JobRow } from '../jobs/job-types';
 import { Lane } from '../jobs/lane';
 import type { OriginalCache } from '../originals/original-cache';
+import type { EnrichContextDeps } from './enrich-context';
 import { EnrichRunner } from './enrich-runner';
 import { EnrichScheduler } from './enrich-scheduler';
 import { EnricherRegistry } from './enricher-registry';
@@ -70,32 +71,24 @@ export class EnrichmentSystem {
 
   private createRunner(): EnrichRunner {
     const { db, queue, events, logger, clock } = this.deps;
-    const inputs = new InputProvider(
-      db,
-      this.deps.thumbsDir,
-      this.deps.originals,
-      path.join(this.deps.tempDir, 'enrich'),
-    );
-    const context = {
-      db,
-      registry: this.deps.connectors,
-      inputs,
-      settings: this.settings,
-      now: clock,
-    };
-    const finalizer = new Finalizer(queue, clock);
     return new EnrichRunner({
       db,
       queue,
       registry: this.registry,
       scheduler: this.scheduler,
       merges: this.merges,
-      finalizer,
-      context,
+      finalizer: new Finalizer(queue, clock),
+      context: this.createContext(),
       events,
       logger,
       clock,
     });
+  }
+
+  private createContext(): EnrichContextDeps {
+    const { db, thumbsDir, originals, tempDir, connectors, clock } = this.deps;
+    const inputs = new InputProvider(db, thumbsDir, originals, path.join(tempDir, 'enrich'));
+    return { db, registry: connectors, inputs, settings: this.settings, now: clock };
   }
 
   private createLane(resourceClass: ResourceClass, runner: EnrichRunner): Lane {

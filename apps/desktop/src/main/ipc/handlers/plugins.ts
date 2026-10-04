@@ -27,6 +27,18 @@ function registerLifecycle(registry: IpcRegistry, { plugins }: PluginHandlerDeps
   );
 }
 
+function registerSettings(registry: IpcRegistry, { plugins }: PluginHandlerDeps): void {
+  registry.handle('plugins.getSettings', ({ id }) => plugins.settingsOf(id));
+  registry.handle(
+    'plugins.setSettings',
+    ({ id, values }, ctx) => (plugins.setSettings(id, values, ctx.user.id), null),
+  );
+  registry.handle(
+    'plugins.rerun',
+    ({ id }, ctx) => (plugins.rerunOnLibrary(id, ctx.user.id), null),
+  );
+}
+
 function registerInstall(registry: IpcRegistry, deps: PluginHandlerDeps): void {
   const { plugins } = deps;
   registry.handle('plugins.pickPackage', () => deps.pickPackage());
@@ -60,6 +72,7 @@ function registerDeveloper(registry: IpcRegistry, deps: PluginHandlerDeps): void
  */
 export function registerPluginHandlers(registry: IpcRegistry, deps: PluginHandlerDeps): void {
   registerLifecycle(registry, deps);
+  registerSettings(registry, deps);
   registerInstall(registry, deps);
   registerDeveloper(registry, deps);
 }

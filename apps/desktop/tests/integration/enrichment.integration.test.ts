@@ -1,4 +1,4 @@
-import { copyFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import localConnector from '@photobeaver/connector-local';
@@ -22,11 +22,8 @@ import {
   type EnricherManifest,
 } from '../../src/main/core/enrich/types';
 import { isMergeBlocked } from '../../src/main/core/assets/merge';
-import { writeGeoPhoto, writeResizedCopy } from '../fixtures/generate';
+import { PARIS, writeEnrichmentSet } from '../fixtures/enrichment-set';
 import { openTempLibrary, silentCoreLog, type TempLibrary } from '../unit/helpers';
-
-const PARIS = { lat: 48.8584, lon: 2.2945 };
-const TOKYO = { lat: 35.6812, lon: 139.7671 };
 
 function enricher(raw: unknown, plugin: unknown): EnricherEntry {
   const result = validateManifest(raw);
@@ -35,50 +32,6 @@ function enricher(raw: unknown, plugin: unknown): EnricherEntry {
     manifest: result.manifest as unknown as EnricherManifest,
     client: inProcessEnricher(plugin as never),
   };
-}
-
-async function writeFixtures(root: string): Promise<void> {
-  await writeGeoPhoto(root, {
-    file: 'trip/paris-1.jpg',
-    seed: 11,
-    date: '2023:05:01 14:22:33',
-    ...PARIS,
-  });
-  await writeGeoPhoto(root, {
-    file: 'trip/paris-2.jpg',
-    seed: 12,
-    date: '2023:05:02 10:00:00',
-    lat: 48.8867,
-    lon: 2.3431,
-  });
-  await writeGeoPhoto(root, {
-    file: 'trip/tokyo.jpg',
-    seed: 13,
-    date: '2024:03:03 09:00:00',
-    ...TOKYO,
-  });
-  await writeGeoPhoto(root, { file: 'a/same.jpg', seed: 14, date: '2022:01:01 12:00:00' });
-  mkdirSync(path.join(root, 'b'));
-  copyFileSync(path.join(root, 'a/same.jpg'), path.join(root, 'b/same.jpg'));
-  await writeGeoPhoto(root, {
-    file: 'big/original.jpg',
-    seed: 15,
-    date: '2021:06:06 06:06:06',
-    width: 640,
-    height: 480,
-  });
-  await writeResizedCopy(
-    path.join(root, 'big/original.jpg'),
-    path.join(root, 'small/resized.jpg'),
-    320,
-  );
-  await writeGeoPhoto(root, { file: 'burst/1.jpg', seed: 16, date: '2020:02:02 02:02:02' });
-  await writeGeoPhoto(root, {
-    file: 'burst/2.jpg',
-    seed: 16,
-    variant: 1,
-    date: '2020:02:02 02:02:03',
-  });
 }
 
 describe('enrichment pipeline headless with the default plugins', () => {
@@ -101,7 +54,7 @@ describe('enrichment pipeline headless with the default plugins', () => {
 
   beforeAll(async () => {
     root = mkdtempSync(path.join(tmpdir(), 'pb-enrich-int-'));
-    await writeFixtures(root);
+    await writeEnrichmentSet(root);
     temp = await openTempLibrary();
     core = new Core({
       library: temp.library,

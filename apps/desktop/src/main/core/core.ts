@@ -21,6 +21,7 @@ import { SourceService } from './sources/source-service';
 import { BatchWriter } from './sync/batch-writer';
 import { SyncRunner } from './sync/sync-runner';
 import { ThumbnailService } from './thumbnails/thumbnail-service';
+import { DuplicatesService } from './enrich/duplicates-service';
 import { EnrichmentSystem } from './enrich/enrichment-system';
 import type { EnricherEntry } from './enrich/types';
 
@@ -66,6 +67,7 @@ export class Core {
   readonly sources: SourceService;
   readonly plugins: PluginManager | null;
   readonly enrichment: EnrichmentSystem;
+  readonly duplicates: DuplicatesService;
   private readonly syncLane: Lane;
   private readonly lanes: Lane[];
   private readonly maintenance: Maintenance;
@@ -79,6 +81,12 @@ export class Core {
     const source = new OriginalSource(options.library.db, this.registry);
     this.originals = new OriginalCache(path.join(options.libraryDir, 'cache', 'originals'), source);
     this.enrichment = this.createEnrichment();
+    this.duplicates = new DuplicatesService(
+      options.library.db,
+      this.enrichment.merges,
+      options.events,
+      this.clock,
+    );
     this.writer = new BatchWriter(options.library.db, this.queue, (ids) =>
       this.enrichment.scheduler.contentChanged(ids),
     );
@@ -229,6 +237,7 @@ export class Core {
       enrichers: this.enrichment.registry,
       enrichLibrary: (id) => void this.enrichment.scheduler.queueLibrary(id),
       queueSize: (id) => this.queue.pendingFor('enrich', id),
+      settings: this.enrichment.settings,
       clock: this.clock,
     });
   }

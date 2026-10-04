@@ -133,6 +133,10 @@ export const assetDetailSchema = z.object({
   favorite: z.boolean(),
   thumbState: z.enum(['pending', 'ready', 'failed']).nullable(),
   instances: z.array(assetInstanceSchema),
+  place: z.string().nullable(),
+  tags: z.array(z.object({ name: z.string(), kind: z.enum(['user', 'auto', 'place']) })),
+  enrichments: z.array(z.object({ pluginId: z.string(), data: z.record(z.string(), z.unknown()) })),
+  mergeIds: z.array(z.string()),
 });
 
 export const pluginPermissionsSchema = z.object({

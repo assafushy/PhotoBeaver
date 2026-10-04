@@ -41,6 +41,26 @@ async function enrichMany(
   });
 }
 
+function registerBatch(services: HostServices, plugin: Enricher): void {
+  services.peer.handle(
+    HOST_METHODS.enrichBatch,
+    (call, { signal }) => enrichMany(services, plugin, call as BatchCall, signal),
+    validatorOf(enrichBatchCallSchema),
+  );
+}
+
+function registerFinalize(services: HostServices, plugin: Enricher): void {
+  services.peer.handle(
+    HOST_METHODS.finalize,
+    async (call, { signal }) => {
+      await plugin.finalize!(
+        enrichContext(services, (call as { contextId: string }).contextId, signal),
+      );
+    },
+    validatorOf(finalizeCallSchema),
+  );
+}
+
 /**
  * Serves an enricher over RPC (SPEC 6.3): `shouldEnrich` runs here before
  * `enrich`, so filtering costs no extra round trip; batch and finalize when supported.
@@ -49,28 +69,11 @@ async function enrichMany(
  * @param plugin - The loaded enricher.
  */
 export function registerEnricher(services: HostServices, plugin: Enricher): void {
-  const { peer } = services;
-  peer.handle(
+  services.peer.handle(
     HOST_METHODS.enrich,
     (call, { signal }) => enrichOne(services, plugin, call as EnrichCall, signal),
     validatorOf(enrichCallSchema),
   );
-  if (plugin.enrichBatch) {
-    peer.handle(
-      HOST_METHODS.enrichBatch,
-      (call, { signal }) => enrichMany(services, plugin, call as BatchCall, signal),
-      validatorOf(enrichBatchCallSchema),
-    );
-  }
-  if (plugin.finalize) {
-    peer.handle(
-      HOST_METHODS.finalize,
-      async (call, { signal }) => {
-        await plugin.finalize!(
-          enrichContext(services, (call as { contextId: string }).contextId, signal),
-        );
-      },
-      validatorOf(finalizeCallSchema),
-    );
-  }
+  if (plugin.enrichBatch) registerBatch(services, plugin);
+  if (plugin.finalize) registerFinalize(services, plugin);
 }

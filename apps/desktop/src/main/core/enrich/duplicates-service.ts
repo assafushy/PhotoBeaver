@@ -9,6 +9,7 @@ const { assets, instances, sources, duplicateSuggestions, assetMerges, assetTags
 const RECENT_MERGES = 50;
 
 type GroupAsset = DuplicateGroup['assets'][number];
+type SuggestionRow = typeof duplicateSuggestions.$inferSelect;
 
 function placeOf(db: LibraryDb, assetId: string): string | null {
   const row = db
@@ -20,30 +21,40 @@ function placeOf(db: LibraryDb, assetId: string): string | null {
   return row?.name ?? null;
 }
 
-function groupAsset(db: LibraryDb, assetId: string): GroupAsset | null {
-  const row = db.select().from(assets).where(eq(assets.id, assetId)).get();
-  if (!row || row.missingSince !== null) return null;
-  const live = and(eq(instances.assetId, assetId), isNull(instances.deletedAt));
-  const size =
-    db
-      .select({ size: max(instances.sizeBytes) })
-      .from(instances)
-      .where(live)
-      .get()?.size ?? null;
-  const names = db
+function liveInstancesOf(assetId: string) {
+  return and(eq(instances.assetId, assetId), isNull(instances.deletedAt));
+}
+
+function largestSizeOf(db: LibraryDb, assetId: string): number | null {
+  const row = db
+    .select({ size: max(instances.sizeBytes) })
+    .from(instances)
+    .where(liveInstancesOf(assetId))
+    .get();
+  return row?.size ?? null;
+}
+
+function sourceNamesOf(db: LibraryDb, assetId: string): string[] {
+  return db
     .selectDistinct({ name: sources.displayName })
     .from(instances)
     .innerJoin(sources, eq(sources.id, instances.sourceId))
-    .where(live)
-    .all();
+    .where(liveInstancesOf(assetId))
+    .all()
+    .map((n) => n.name);
+}
+
+function groupAsset(db: LibraryDb, assetId: string): GroupAsset | null {
+  const row = db.select().from(assets).where(eq(assets.id, assetId)).get();
+  if (!row || row.missingSince !== null) return null;
   return {
     id: row.id,
     mediaType: row.mediaType,
     width: row.width,
     height: row.height,
     capturedAt: row.capturedAt,
-    sizeBytes: size,
-    sources: names.map((n) => n.name),
+    sizeBytes: largestSizeOf(db, assetId),
+    sources: sourceNamesOf(db, assetId),
     place: placeOf(db, assetId),
   };
 }
@@ -68,21 +79,7 @@ export class DuplicatesService {
       .where(eq(duplicateSuggestions.status, 'open'))
       .orderBy(desc(duplicateSuggestions.createdAt))
       .all();
-    return open.flatMap((row) => {
-      const members = (JSON.parse(row.assetIdsJson) as string[])
-        .map((id) => groupAsset(this.db, id))
-        .filter((a): a is GroupAsset => a !== null);
-      if (members.length < 2) return (this.close(row.id, 'merged'), []);
-      return [
-        {
-          id: row.id,
-          kind: row.kind,
-          confidence: row.confidence,
-          createdAt: row.createdAt,
-          assets: members,
-        },
-      ];
-    });
+    return open.flatMap((row) => this.toGroup(row));
   }
 
   /**
@@ -151,20 +148,13 @@ export class DuplicatesService {
     );
   }
 
-  /**
-   * Undoable merges that produced an asset (for the viewer's "Undo merge").
-   *
-   * @param assetId - Surviving asset.
-   * @returns Merge ids, newest first.
-   */
-  mergesInto(assetId: string): string[] {
-    return this.db
-      .select({ id: assetMerges.id })
-      .from(assetMerges)
-      .where(and(eq(assetMerges.survivingAssetId, assetId), isNull(assetMerges.undoneAt)))
-      .orderBy(desc(assetMerges.createdAt))
-      .all()
-      .map((r) => r.id);
+  private toGroup(row: SuggestionRow): DuplicateGroup[] {
+    const members = (JSON.parse(row.assetIdsJson) as string[])
+      .map((id) => groupAsset(this.db, id))
+      .filter((a): a is GroupAsset => a !== null);
+    if (members.length < 2) return (this.close(row.id, 'merged'), []);
+    const { id, kind, confidence, createdAt } = row;
+    return [{ id, kind, confidence, createdAt, assets: members }];
   }
 
   private assetIds(id: string): string[] {

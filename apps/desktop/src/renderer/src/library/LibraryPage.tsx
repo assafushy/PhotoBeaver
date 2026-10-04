@@ -1,6 +1,9 @@
+import type { AssetSummary } from '@photobeaver/shared';
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, Outlet, useNavigate } from 'react-router-dom';
+import { FilterBar } from '../search/FilterBar';
+import { isFiltered, useSettledFilter } from '../search/filter-store';
 import { LibraryGrid } from './LibraryGrid';
 import { useLibrary } from './use-library';
 
@@ -44,21 +47,33 @@ function LibraryHeader({ total, loadingMore }: { total: number; loadingMore: boo
   );
 }
 
-export function LibraryPage() {
+function LibraryBody({ items, total }: { items: AssetSummary[]; total: number }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { items, total, isPending, isError, isLoadingMore } = useLibrary();
   const open = useCallback(
     (index: number) => navigate(`/library/asset/${items[index]!.id}`),
     [items, navigate],
   );
+  if (total === 0) return <StatusMessage text={t('search.noMatches')} />;
+  return <LibraryGrid items={items} onOpen={open} />;
+}
+
+/**
+ * The library screen (SPEC 8.1 #3): search and filters over the justified grid,
+ * with the viewer as a nested route that sees the filtered list.
+ */
+export function LibraryPage() {
+  const { t } = useTranslation();
+  const filter = useSettledFilter();
+  const { items, total, isPending, isError, isLoadingMore } = useLibrary(filter);
   if (isPending) return <StatusMessage text={t('library.loading')} />;
   if (isError) return <StatusMessage text={t('library.error')} />;
-  if (total === 0) return <EmptyLibrary />;
+  if (total === 0 && !isFiltered(filter)) return <EmptyLibrary />;
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <LibraryHeader total={total} loadingMore={isLoadingMore} />
-      <LibraryGrid items={items} onOpen={open} />
+      <FilterBar />
+      <LibraryBody items={items} total={total} />
       <Outlet context={{ items }} />
     </div>
   );

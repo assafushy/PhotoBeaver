@@ -45,7 +45,18 @@ const byId =
 const api: PbApi = {
   app: { info: () => invoke('app.info') },
   session: { current: () => invoke('session.current') },
-  library: { query: (input) => invoke('library.query', input) },
+  library: {
+    query: (input) => invoke('library.query', input),
+    facets: () => invoke('library.facets'),
+    geoPoints: (filter) => invoke('library.geoPoints', { filter }),
+  },
+  duplicates: {
+    list: () => invoke('duplicates.list'),
+    merge: (id, keepAssetId) => invoke('duplicates.merge', { id, keepAssetId }),
+    dismiss: byId('duplicates.dismiss'),
+  },
+  merges: { recent: () => invoke('merges.recent'), undo: byId('merges.undo') },
+  settings: { get: () => invoke('settings.get'), set: (patch) => invoke('settings.set', patch) },
   assets: { get: byId('assets.get'), openInSource: byId('assets.openInSource') },
   sources: {
     list: () => invoke('sources.list'),
@@ -72,6 +83,9 @@ const api: PbApi = {
     setDeveloperMode: (enabled) => invoke('plugins.setDeveloperMode', { enabled }),
     loadUnpacked: () => invoke('plugins.loadUnpacked'),
     reload: byId('plugins.reload'),
+    getSettings: byId('plugins.getSettings'),
+    setSettings: (id, values) => invoke('plugins.setSettings', { id, values }),
+    rerun: byId('plugins.rerun'),
   },
   events: { on },
 };

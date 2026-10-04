@@ -12,6 +12,8 @@ import type { EventSink } from '../events/event-sink';
 import { bundledPlugins, compareVersions, type BundledPlugin } from './default-plugins';
 import { loadPlugin, type LoadedPlugin, type LoaderDeps } from './plugin-loader';
 import type { EnricherRegistry } from '../enrich/enricher-registry';
+import type { PluginSettings } from '../enrich/plugin-settings';
+import type { ConfigSchema } from '@photobeaver/shared';
 import { pluginRows, type InstallSource, type PluginRow } from './plugin-rows';
 import { pluginSummary, stagedSummary } from './plugin-summary';
 import { readManifest, type PluginStore, type StagedPackage } from './plugin-store';
@@ -31,6 +33,7 @@ export interface PluginManagerDeps {
   enrichers: EnricherRegistry;
   enrichLibrary(pluginId: string): void;
   queueSize(pluginId: string): number;
+  settings: PluginSettings;
   clock?: Clock;
 }
 
@@ -298,6 +301,39 @@ export class PluginManager {
   private cleanupPrevious(previous: PluginRow | undefined, installPath: string): void {
     const old = previous?.installPath;
     if (old && old !== installPath && previous.installSource !== 'dev') this.deps.store.remove(old);
+  }
+
+  /**
+   * A plugin's settings form data (SPEC 8.1 #9): schema and current values.
+   *
+   * @param id - Plugin id.
+   * @returns Schema and values with defaults applied.
+   */
+  settingsOf(id: string): { configSchema: ConfigSchema; values: Record<string, unknown> } {
+    const manifest = this.manifestOf(id);
+    return {
+      configSchema: manifest.configSchema,
+      values: this.deps.settings.get(id, manifest.configSchema),
+    };
+  }
+
+  /**
+   * Saves a plugin's settings.
+   *
+   * @param id - Plugin id.
+   * @param values - New values.
+   * @param userId - Acting user.
+   */
+  setSettings(id: string, values: Record<string, unknown>, userId: string): void {
+    this.deps.settings.set(id, this.manifestOf(id).configSchema, values);
+    this.audit(userId, 'plugin.settings', id);
+    this.changed();
+  }
+
+  private manifestOf(id: string): PluginManifest {
+    const loaded = this.loaded.get(id);
+    if (!loaded) throw new Error('Enable the plugin to change its settings');
+    return loaded.manifest;
   }
 
   /**

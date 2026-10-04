@@ -36,5 +36,6 @@ export default defineConfig({
   renderer: {
     root: fileURLToPath(new URL('./src/renderer', import.meta.url)),
     plugins: [react(), tailwindcss()],
+    worker: { format: 'es' },
   },
 });

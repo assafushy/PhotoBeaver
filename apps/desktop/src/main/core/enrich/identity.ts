@@ -78,6 +78,36 @@ export function listIdentity(db: LibraryDb, prefix: string, cursor?: string): Id
 
 const setKey = (ids: readonly string[]): string => JSON.stringify([...new Set(ids)].sort());
 
+function suggestedSets(db: LibraryDb): Set<string> {
+  return new Set(
+    db
+      .select({ ids: duplicateSuggestions.assetIdsJson })
+      .from(duplicateSuggestions)
+      .all()
+      .map((r) => r.ids),
+  );
+}
+
+interface NewSuggestion {
+  pluginId: string;
+  ids: string;
+  suggestion: DuplicateSuggestion;
+  now: number;
+}
+
+function insertSuggestion(db: LibraryDb, { pluginId, ids, suggestion, now }: NewSuggestion): void {
+  db.insert(duplicateSuggestions)
+    .values({
+      id: ulid(now),
+      pluginId,
+      assetIdsJson: ids,
+      kind: suggestion.kind,
+      confidence: suggestion.confidence,
+      createdAt: now,
+    })
+    .run();
+}
+
 /**
  * Stores duplicate suggestions for the user (SPEC 4.3 step 3), skipping sets that
  * were already suggested (open, merged or dismissed).
@@ -94,27 +124,12 @@ export function storeSuggestions(
   suggestions: readonly DuplicateSuggestion[],
   now: number,
 ): number {
-  const existing = new Set(
-    db
-      .select({ ids: duplicateSuggestions.assetIdsJson })
-      .from(duplicateSuggestions)
-      .all()
-      .map((r) => r.ids),
-  );
+  const existing = suggestedSets(db);
   let added = 0;
   for (const suggestion of suggestions) {
     const ids = setKey(suggestion.assetIds);
     if (existing.has(ids) || JSON.parse(ids).length < 2) continue;
-    db.insert(duplicateSuggestions)
-      .values({
-        id: ulid(now),
-        pluginId,
-        assetIdsJson: ids,
-        kind: suggestion.kind,
-        confidence: suggestion.confidence,
-        createdAt: now,
-      })
-      .run();
+    insertSuggestion(db, { pluginId, ids, suggestion, now });
     existing.add(ids);
     added++;
   }
