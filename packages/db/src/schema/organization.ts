@@ -42,15 +42,36 @@ export const people = sqliteTable('people', {
   createdAt: integer('created_at'),
 });
 
-export const faces = sqliteTable('faces', {
-  id: text('id').primaryKey(),
-  assetId: text('asset_id').references(() => assets.id, { onDelete: 'cascade' }),
-  pluginId: text('plugin_id'),
-  bboxJson: text('bbox_json'),
-  confidence: real('confidence'),
-  personId: text('person_id').references(() => people.id),
-  assignedBy: text('assigned_by', { enum: ['user', 'auto'] }),
-});
+export const faces = sqliteTable(
+  'faces',
+  {
+    id: text('id').primaryKey(),
+    assetId: text('asset_id').references(() => assets.id, { onDelete: 'cascade' }),
+    pluginId: text('plugin_id'),
+    bboxJson: text('bbox_json'),
+    confidence: real('confidence'),
+    personId: text('person_id').references(() => people.id),
+    assignedBy: text('assigned_by', { enum: ['user', 'auto'] }),
+  },
+  (t) => [
+    index('faces_asset_idx').on(t.assetId),
+    index('faces_person_idx').on(t.personId),
+    index('faces_plugin_idx').on(t.pluginId),
+  ],
+);
+
+export const faceRejections = sqliteTable(
+  'face_rejections',
+  {
+    faceId: text('face_id')
+      .notNull()
+      .references(() => faces.id, { onDelete: 'cascade' }),
+    personId: text('person_id')
+      .notNull()
+      .references(() => people.id, { onDelete: 'cascade' }),
+  },
+  (t) => [primaryKey({ columns: [t.faceId, t.personId] })],
+);
 
 export const albums = sqliteTable('albums', {
   id: text('id').primaryKey(),

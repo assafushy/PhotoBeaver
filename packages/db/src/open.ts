@@ -6,6 +6,7 @@ import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import { applyPragmas, type JournalMode } from './pragmas';
 import { runMigrations, type MigrationOutcome } from './migrations';
 import * as schema from './schema';
+import { loadVectorExtension } from './vector';
 
 export const DB_FILENAME = 'photobeaver.db';
 
@@ -35,7 +36,8 @@ export function defaultMigrationsFolder(): string {
 }
 
 /**
- * Opens (creating if needed) the library database, applies pragmas and migrations.
+ * Opens (creating if needed) the library database, applies pragmas, loads the
+ * sqlite-vec extension (faces_vec needs it, including in migrations) and migrates.
  *
  * @param options - Library directory, migrations folder and journal mode.
  * @returns The open connection, drizzle wrapper and migration outcome.
@@ -45,6 +47,7 @@ export async function openLibrary(options: OpenLibraryOptions): Promise<OpenLibr
   const dbPath = path.join(options.libraryDir, DB_FILENAME);
   const sqlite = new Database(dbPath);
   applyPragmas(sqlite, options.journalMode);
+  loadVectorExtension(sqlite);
   const db = drizzle(sqlite, { schema });
   const migrationsFolder = options.migrationsFolder ?? defaultMigrationsFolder();
   const migration = await runMigrations(sqlite, db, dbPath, migrationsFolder);

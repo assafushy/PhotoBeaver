@@ -29,6 +29,7 @@ export interface EnrichmentTag {
   kind?: 'auto' | 'place';
 }
 
+/** Face box as fractions (0 to 1) of the image width and height. */
 export interface FaceBox {
   x: number;
   y: number;
@@ -38,7 +39,9 @@ export interface FaceBox {
 
 export interface DetectedFace {
   bbox: FaceBox;
+  /** Detection score, 0 to 1. */
   confidence: number;
+  /** L2-normalized embedding. Core clusters 512-d embeddings (cosine distance). */
   embedding?: number[];
 }
 

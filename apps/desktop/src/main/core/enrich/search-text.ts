@@ -1,7 +1,7 @@
 import { schema, type LibraryDb } from '@photobeaver/db';
 import { and, eq, sql } from 'drizzle-orm';
 
-const { instances, assetTags, tags, enrichments } = schema;
+const { instances, assetTags, tags, enrichments, faces, people } = schema;
 
 export const SEARCH_TEXT_KEY = '$searchText';
 
@@ -36,9 +36,19 @@ function enricherTerms(db: LibraryDb, assetId: string): string[] {
     .map((r) => JSON.parse(r.value) as string);
 }
 
+function personTerms(db: LibraryDb, assetId: string): string[] {
+  return db
+    .selectDistinct({ name: people.name })
+    .from(faces)
+    .innerJoin(people, eq(people.id, faces.personId))
+    .where(eq(faces.assetId, assetId))
+    .all()
+    .flatMap((r) => (r.name ? [r.name] : []));
+}
+
 /**
  * Rebuilds an asset's full-text row (SPEC 4.2 `assets_fts`) from file names,
- * folders, captions, tags and place names, and enricher `searchText`.
+ * folders, captions, tags and place names, people's names, and enricher `searchText`.
  *
  * @param db - Database or transaction.
  * @param assetId - Asset id.
@@ -47,6 +57,7 @@ export function refreshSearchText(db: LibraryDb, assetId: string): void {
   const text = [
     ...instanceTerms(db, assetId),
     ...tagTerms(db, assetId),
+    ...personTerms(db, assetId),
     ...enricherTerms(db, assetId),
   ]
     .join(' ')

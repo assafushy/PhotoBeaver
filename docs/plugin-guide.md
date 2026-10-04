@@ -56,6 +56,25 @@ Each plugin runs in its own process. It talks to Photo Beaver only through `ctx`
 
 This protects the app from crashes and accidental overreach. It is not a security sandbox against malicious native code, which is why files installed from outside the store show a warning and `nativeModules: true` is shown prominently.
 
+## Native dependencies
+
+Packages with compiled `.node` binaries (for example `onnxruntime-node`) cannot be bundled into `dist/index.js`. Install them as normal dependencies and list them in `package.json`:
+
+```json
+{
+  "dependencies": { "onnxruntime-node": "^1.22.0" },
+  "photobeaver": { "nativeDependencies": ["onnxruntime-node"] }
+}
+```
+
+Then set `"permissions": { "nativeModules": true }` in `photobeaver-plugin.json`.
+
+- `pb-plugin build` and `pb-plugin dev` leave these packages (and their subpaths) as runtime imports, and copy each one plus its production dependencies into `dist/node_modules/`. `dev` copies them after the first successful build, so restart it after installing or upgrading one.
+- Binaries for other platforms are removed for known layouts (`onnxruntime-node` keeps only `bin/napi-v6/<platform>/<arch>/`). Set `PB_PLUGIN_TARGET_PLATFORM` and `PB_PLUGIN_TARGET_ARCH` to package for another platform, after installing that platform's binaries.
+- `pb-plugin validate` and `pb-plugin pack` fail when native dependencies are declared without `nativeModules: true`, and warn when `nativeModules` is true but nothing is declared.
+- A `.pbplugin` holds the binaries for one platform, so publish one package per platform. The unpacked package must stay under 512 MB.
+- Most native packages are CommonJS. Import them with a default import (`import ort from 'onnxruntime-node'`).
+
 ## Install a packed plugin
 
 Send the `.pbplugin` file to a user. In **Plugins > Installed > Install from file** they choose it, review the permissions it asks for, and install it. Plugins installed from a file are marked as not reviewed.

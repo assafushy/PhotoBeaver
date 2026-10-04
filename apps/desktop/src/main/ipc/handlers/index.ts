@@ -7,6 +7,7 @@ import type { IpcRegistry } from '../registry';
 import { registerLibraryExtras } from './library-extras';
 import { registerPluginHandlers, type PluginHandlerDeps } from './plugins';
 import type { DuplicatesService } from '../../core/enrich/duplicates-service';
+import type { PeopleService } from '../../core/faces/people-service';
 
 export interface HandlerDeps {
   db: LibraryDb;
@@ -16,6 +17,7 @@ export interface HandlerDeps {
   openExternalUrl: (url: string) => Promise<void>;
   plugins: PluginHandlerDeps;
   duplicates: DuplicatesService;
+  people: PeopleService;
 }
 
 function registerLibraryHandlers(registry: IpcRegistry, deps: HandlerDeps): void {
@@ -63,6 +65,10 @@ export function registerHandlers(registry: IpcRegistry, deps: HandlerDeps): void
   registerLibraryHandlers(registry, deps);
   registerSourceHandlers(registry, deps);
   registerPluginHandlers(registry, deps.plugins);
-  registerLibraryExtras(registry, { db: deps.db, duplicates: deps.duplicates });
+  registerLibraryExtras(registry, {
+    db: deps.db,
+    duplicates: deps.duplicates,
+    people: deps.people,
+  });
   registry.assertComplete();
 }

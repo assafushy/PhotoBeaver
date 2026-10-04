@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { writeFacebookExport, writeInstagramExport, writeTakeoutExport } from '../fixtures/exports';
-import { launchApp, libraryCount, removeDir, tempDir, type RendererGlobals } from './app';
+import { launchApp, libraryCount, removeDir, tempDir, type RendererGlobals, closeApp } from './app';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -56,7 +56,7 @@ test('imports Facebook, Instagram and Google Takeout exports read in place', asy
     (globalThis as RendererGlobals).pb.library.geoPoints({}),
   );
   expect(points.points).toHaveLength(2);
-  await app.close();
+  await closeApp(app);
 });
 
 test('shows the Facebook photo with its export date and place in the viewer', async () => {
@@ -65,5 +65,5 @@ test('shows the Facebook photo with its export date and place in the viewer', as
   await page.getByTestId('library-tile').first().click();
   await expect(page.getByTestId('viewer-info')).toContainText('2023');
   await expect(page.getByTestId('viewer-place')).toContainText('Paris', { timeout: 30_000 });
-  await app.close();
+  await closeApp(app);
 });

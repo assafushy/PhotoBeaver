@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { launchApp, removeDir, tempDir, type RendererGlobals } from './app';
+import { launchApp, removeDir, tempDir, type RendererGlobals, closeApp } from './app';
 
 const DROPBOX = 'com.photobeaver.connector-dropbox';
 
@@ -49,5 +49,5 @@ test('asks for the app key, then waits for the browser sign-in and can be cancel
   await expect(waiting).toBeHidden();
   await expect(page.getByRole('alert')).toHaveCount(0);
   expect(await sourceCount(page)).toBe(0);
-  await app.close();
+  await closeApp(app);
 });

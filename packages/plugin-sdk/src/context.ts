@@ -21,6 +21,8 @@ export interface PluginContext {
   fetch: typeof fetch;
   settings<T>(): Promise<T>;
   signal: AbortSignal;
+  /** Short progress text shown on the plugin's card (e.g. "Downloading models: 45%"); null clears it. */
+  status(text: string | null): void;
 }
 
 export interface OAuthTokens {

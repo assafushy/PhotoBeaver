@@ -1,9 +1,11 @@
 import type { PluginSummary } from '@photobeaver/shared';
 import { useMutation } from '@tanstack/react-query';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ErrorText } from '../components/ErrorText';
 import { buttonStyles } from '../components/Modal';
 import { RerunButton, SettingsButton } from './EnricherActions';
+import { EnableNotice } from './EnableNotice';
 import { PermissionList } from './PermissionList';
 import { LogsButton, UninstallButton } from './PluginDialogs';
 import { useRefreshPlugins } from './use-plugins';
@@ -49,20 +51,52 @@ function ReEnableButton({ plugin }: { plugin: PluginSummary }) {
   );
 }
 
-function ToggleButton({ plugin }: { plugin: PluginSummary }) {
-  const { t } = useTranslation();
+function useToggle(plugin: PluginSummary) {
+  const [asking, setAsking] = useState(false);
   const toggle = useRefreshingMutation(() =>
     window.pb.plugins.setEnabled(plugin.id, !plugin.enabled),
   );
+  const needsConsent = !plugin.enabled && plugin.enableNotice !== null;
+  const click = () => (needsConsent ? setAsking(true) : toggle.mutate());
+  const accept = () => (setAsking(false), toggle.mutate());
+  return { asking, setAsking, toggle, click, accept };
+}
+
+interface ToggleNoticeProps {
+  plugin: PluginSummary;
+  open: boolean;
+  onOpenChange(open: boolean): void;
+  onAccept(): void;
+}
+
+function ToggleNotice({ plugin, open, onOpenChange, onAccept }: ToggleNoticeProps) {
+  if (!plugin.enableNotice) return null;
   return (
-    <button
-      type="button"
-      className={buttonStyles.secondary}
-      disabled={toggle.isPending}
-      onClick={() => toggle.mutate()}
-    >
-      {t(plugin.enabled ? 'plugins.disable' : 'plugins.enable')}
-    </button>
+    <EnableNotice
+      pluginId={plugin.id}
+      notice={plugin.enableNotice}
+      open={open}
+      onOpenChange={onOpenChange}
+      onAccept={onAccept}
+    />
+  );
+}
+
+function ToggleButton({ plugin }: { plugin: PluginSummary }) {
+  const { t } = useTranslation();
+  const { asking, setAsking, toggle, click, accept } = useToggle(plugin);
+  return (
+    <>
+      <button
+        type="button"
+        className={buttonStyles.secondary}
+        disabled={toggle.isPending}
+        onClick={click}
+      >
+        {t(plugin.enabled ? 'plugins.disable' : 'plugins.enable')}
+      </button>
+      <ToggleNotice plugin={plugin} open={asking} onOpenChange={setAsking} onAccept={accept} />
+    </>
   );
 }
 
@@ -101,6 +135,11 @@ function Details({ plugin }: { plugin: PluginSummary }) {
         {t(plugin.running ? 'plugins.running' : 'plugins.stopped', { count: plugin.restarts })}
         {plugin.queueSize > 0 ? ` · ${t('plugins.queued', { count: plugin.queueSize })}` : ''}
       </p>
+      {plugin.activity && (
+        <p className="text-xs text-amber-700 dark:text-amber-300" data-testid="plugin-activity">
+          {plugin.activity}
+        </p>
+      )}
     </>
   );
 }

@@ -1,7 +1,7 @@
 import { schema, type LibraryDb } from '@photobeaver/db';
 import type { AssetDetail } from '@photobeaver/shared';
 import { eq } from 'drizzle-orm';
-import { enrichmentsOf, mergeIdsOf, placeOf, tagsOf } from './asset-extras';
+import { enrichmentsOf, facesOf, mergeIdsOf, placeOf, tagsOf } from './asset-extras';
 
 const { assets, instances, sources } = schema;
 
@@ -82,13 +82,14 @@ export function getAssetDetail(db: LibraryDb, assetId: string): AssetDetail {
 function extrasOf(
   db: LibraryDb,
   assetId: string,
-): Pick<AssetDetail, 'place' | 'tags' | 'enrichments' | 'mergeIds'> {
+): Pick<AssetDetail, 'place' | 'tags' | 'enrichments' | 'mergeIds' | 'faces'> {
   const detailTags = tagsOf(db, assetId);
   return {
     tags: detailTags,
     place: placeOf(detailTags),
     enrichments: enrichmentsOf(db, assetId),
     mergeIds: mergeIdsOf(db, assetId),
+    faces: facesOf(db, assetId),
   };
 }
 

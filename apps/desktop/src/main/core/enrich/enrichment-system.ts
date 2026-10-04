@@ -1,3 +1,4 @@
+import type { FaceStore } from '../faces/face-store';
 import { availableParallelism } from 'node:os';
 import path from 'node:path';
 import type { LibraryDb } from '@photobeaver/db';
@@ -31,6 +32,8 @@ export interface EnrichmentDeps {
   logger: CoreLog;
   clock: Clock;
   isOnBattery: () => boolean;
+  faces: FaceStore;
+  onFacesChanged(): void;
 }
 
 const LANE_SIZES: Record<ResourceClass, () => number> = {
@@ -53,7 +56,7 @@ export class EnrichmentSystem {
   constructor(private readonly deps: EnrichmentDeps) {
     this.settings = new PluginSettings(deps.db);
     this.scheduler = new EnrichScheduler(deps.db, deps.queue, this.registry, deps.clock);
-    this.merges = new MergeService(deps.db, this.scheduler, deps.events, deps.clock);
+    this.merges = new MergeService(deps.db, this.scheduler, deps.events, deps.clock, deps.faces);
     const runner = this.createRunner();
     this.lanes = (Object.keys(LANE_SIZES) as ResourceClass[]).map((cls) =>
       this.createLane(cls, runner),
@@ -70,8 +73,10 @@ export class EnrichmentSystem {
   }
 
   private createRunner(): EnrichRunner {
-    const { db, queue, events, logger, clock } = this.deps;
+    const { db, queue, events, logger, clock, faces, onFacesChanged } = this.deps;
     return new EnrichRunner({
+      faces,
+      onFacesChanged,
       db,
       queue,
       registry: this.registry,

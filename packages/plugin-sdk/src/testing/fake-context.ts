@@ -32,6 +32,7 @@ export interface FakeRecorder {
   secret: Record<string, unknown> | undefined;
   oauth: { kind: 'authorize' | 'refresh'; options: object }[];
   opened: string[];
+  statuses: (string | null)[];
 }
 
 export interface FakeContextOptions {
@@ -66,6 +67,7 @@ export function emptyRecorder(): FakeRecorder {
     secret: undefined,
     oauth: [],
     opened: [],
+    statuses: [],
   };
 }
 
@@ -140,6 +142,7 @@ export function createFakeSourceContext<Config>(
     fetch: options.fetch ?? globalThis.fetch,
     settings: async <T>() => (options.settings ?? {}) as T,
     signal: options.signal ?? new AbortController().signal,
+    status: (text) => void recorded.statuses.push(text),
     secret: fakeSecret(recorded),
     oauth: fakeOAuth(recorded, options),
     ui: fakeUi(recorded, options),

@@ -105,8 +105,10 @@ function registerIpc({ paths, logger, library, session, core, developerMode }: S
       developerMode,
       pickPackage: pickPluginPackage,
       pickDirectory,
+      openExternal: openBrowser,
     },
     duplicates: core.duplicates,
+    people: core.people,
   });
 }
 
@@ -118,6 +120,15 @@ function registerMedia({ paths, library, session, core }: Services): void {
     thumbsDir: path.join(paths.libraryDir, 'thumbs'),
     currentUser: () => session.current(),
   });
+}
+
+async function shutdownServices({ logger, developerMode, core, library }: Services): Promise<void> {
+  logger.info({}, 'Shutting down');
+  await developerMode.stop();
+  await core.stop();
+  library.close();
+  logger.info({}, 'Shutdown complete');
+  logger.flush();
 }
 
 /**
@@ -138,12 +149,5 @@ export async function startApp(): Promise<App> {
   registerMedia(services);
   core.start();
   await developerMode.start();
-  const shutdown = async () => {
-    logger.info({}, 'Shutting down');
-    await developerMode.stop();
-    await core.stop();
-    library.close();
-    logger.info({}, 'Shutdown complete');
-  };
-  return { library, core, logger, shutdown };
+  return { library, core, logger, shutdown: () => shutdownServices(services) };
 }

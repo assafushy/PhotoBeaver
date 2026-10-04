@@ -6,3 +6,4 @@ allowBuilds:
   electron-winstaller: false
   esbuild: true
   ffmpeg-static: true
+  onnxruntime-node: false

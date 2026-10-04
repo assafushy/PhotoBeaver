@@ -4,8 +4,9 @@ import type { PluginManifest } from '@photobeaver/shared/manifest';
 import { PACKAGE_EXTENSION, packPlugin, sha256Hex } from '@photobeaver/shared/pbplugin';
 import type { CliArgs } from '../args';
 import { buildPlugin } from '../bundle';
+import type { NativeCopyOptions } from '../native-copy';
 import type { Output } from '../output';
-import { reportErrors, validateProject } from './validate';
+import { reportErrors, reportWarnings, validateProject } from './validate';
 
 export interface PackedPlugin {
   packagePath: string;
@@ -13,7 +14,8 @@ export interface PackedPlugin {
   sha256: string;
 }
 
-export type PackResult = ({ ok: true } & PackedPlugin) | { ok: false; errors: string[] };
+export type PackResult =
+  ({ ok: true; warnings: string[] } & PackedPlugin) | { ok: false; errors: string[] };
 
 /**
  * The package file name for a manifest: `<id>-<version>.pbplugin`.
@@ -40,14 +42,22 @@ function writePackage(dir: string, manifest: PluginManifest): PackedPlugin {
  * Builds, validates and packs a plugin into `<id>-<version>.pbplugin` plus a `.sha256` file.
  *
  * @param dir - Plugin project folder.
- * @returns Paths and hash, or readable errors.
+ * @param native - Prune rules and target platform for native dependencies.
+ * @returns Paths, hash and validation warnings, or readable errors.
  */
-export async function packProject(dir: string): Promise<PackResult> {
-  const built = await buildPlugin(dir);
+export async function packProject(
+  dir: string,
+  native: NativeCopyOptions = {},
+): Promise<PackResult> {
+  const built = await buildPlugin(dir, native);
   if (!built.ok) return built;
   const valid = await validateProject(dir);
   if (!valid.ok) return valid;
-  return { ok: true, ...writePackage(dir, valid.manifest) };
+  try {
+    return { ok: true, warnings: valid.warnings, ...writePackage(dir, valid.manifest) };
+  } catch (error) {
+    return { ok: false, errors: [(error as Error).message] };
+  }
 }
 
 /**
@@ -63,6 +73,7 @@ export async function runPack(args: CliArgs, out: Output): Promise<number> {
     out.error('Pack failed:');
     return reportErrors(out, result.errors);
   }
+  reportWarnings(out, result.warnings);
   out.info(`Packed ${result.packagePath}`);
   out.info(`sha256 ${result.sha256}`);
   return 0;

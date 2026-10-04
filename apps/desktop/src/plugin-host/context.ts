@@ -52,6 +52,7 @@ export function pluginContext(services: HostServices, signal: AbortSignal): Plug
     fetch: services.fetch,
     settings: async <T>() => (await peer.request(CORE_METHODS.settings, {})) as T,
     signal,
+    status: (text) => peer.notify(CORE_METHODS.status, { text }),
   };
 }
 

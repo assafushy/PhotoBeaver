@@ -9,7 +9,7 @@ interface FilterState {
   setText(text: string): void;
   toggleMediaType(type: MediaType): void;
   toggleFlag(flag: 'favoritesOnly' | 'multiSource'): void;
-  setList(key: 'sourceIds' | 'tagIds', ids: string[]): void;
+  setList(key: 'sourceIds' | 'tagIds' | 'personIds', ids: string[]): void;
   clear(): void;
 }
 

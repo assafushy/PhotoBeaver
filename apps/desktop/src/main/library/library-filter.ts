@@ -34,6 +34,10 @@ function hasTag(tagId: string): SQL {
   return sql`EXISTS (SELECT 1 FROM asset_tags t WHERE t.asset_id = ${assets.id} AND t.tag_id = ${tagId})`;
 }
 
+function showsPerson(personId: string): SQL {
+  return sql`EXISTS (SELECT 1 FROM faces f WHERE f.asset_id = ${assets.id} AND f.person_id = ${personId})`;
+}
+
 function textMatch(text: string | undefined): SQL | undefined {
   const query = text ? ftsQuery(text) : null;
   if (text && !query) return sql`0`;
@@ -60,6 +64,7 @@ export function filterCondition(filter: LibraryFilter): SQL {
     filter.sourceIds?.length ? liveInstanceIn(filter.sourceIds) : undefined,
     filter.mediaTypes?.length ? inArray(assets.mediaType, filter.mediaTypes) : undefined,
     ...(filter.tagIds ?? []).map(hasTag),
+    ...(filter.personIds ?? []).map(showsPerson),
     filter.favoritesOnly ? eq(assets.favorite, 1) : undefined,
     filter.multiSource ? multiSource : undefined,
   ];

@@ -1,0 +1,38 @@
+{
+  "name": "@photobeaver/enricher-faces",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Find faces in photos and describe them so similar faces can be grouped into people",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./manifest": "./photobeaver-plugin.json"
+  },
+  "scripts": {
+    "build": "pb-plugin build",
+    "pack": "pb-plugin pack",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "photobeaver": {
+    "nativeDependencies": [
+      "onnxruntime-node"
+    ]
+  },
+  "dependencies": {
+    "@photobeaver/plugin-sdk": "workspace:*",
+    "onnxruntime-node": "1.30.0",
+    "pngjs": "^7.0.0"
+  },
+  "devDependencies": {
+    "@photobeaver/plugin-cli": "workspace:*",
+    "@photobeaver/shared": "workspace:*",
+    "@types/node": "^26.6.4",
+    "@types/pngjs": "^6.0.5",
+    "sharp": "^0.35.5",
+    "vitest": "^5.0.3"
+  }
+}

@@ -5,6 +5,7 @@ import { usePlugins } from '../plugins/use-plugins';
 const NAV_ITEMS = [
   { to: '/library', key: 'nav.library' },
   { to: '/map', key: 'nav.map' },
+  { to: '/people', key: 'nav.people', needsFaces: true },
   { to: '/duplicates', key: 'nav.duplicates', needsMerge: true },
   { to: '/sources', key: 'nav.sources' },
   { to: '/plugins', key: 'nav.plugins' },
@@ -21,15 +22,23 @@ function navClass({ isActive }: { isActive: boolean }): string {
   return `${base} ${state}`;
 }
 
-function useHasMergePlugin(): boolean {
+function useNavFlags(): { needsMerge: boolean; needsFaces: boolean } {
   const { data } = usePlugins();
-  return (data ?? []).some((p) => p.enabled && p.permissions?.assets === 'merge');
+  const enabled = (data ?? []).filter((p) => p.enabled);
+  return {
+    needsMerge: enabled.some((p) => p.permissions?.assets === 'merge'),
+    needsFaces: enabled.some((p) => p.produces.includes('faces')),
+  };
 }
 
 function NavList() {
   const { t } = useTranslation();
-  const hasMerge = useHasMergePlugin();
-  const items = NAV_ITEMS.filter((item) => !('needsMerge' in item) || hasMerge);
+  const flags = useNavFlags();
+  const items = NAV_ITEMS.filter(
+    (item) =>
+      !('needsMerge' in item || 'needsFaces' in item) ||
+      ('needsMerge' in item ? flags.needsMerge : flags.needsFaces),
+  );
   return (
     <nav aria-label={t('nav.label')}>
       <ul className="space-y-1">

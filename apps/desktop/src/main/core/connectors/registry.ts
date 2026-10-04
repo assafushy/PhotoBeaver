@@ -40,6 +40,7 @@ export interface RegistryDeps {
   openExternal(url: string): Promise<void>;
   settings(manifest: ConnectorManifest): Record<string, unknown>;
   fetch?: typeof fetch;
+  onStatus?: (pluginId: string, text: string | null) => void;
 }
 
 export interface SyncHooks {
@@ -220,6 +221,7 @@ export class ConnectorRegistry {
       fetch: this.deps.fetch ?? globalThis.fetch,
       settings: async <T>() => this.settingsOf(pluginId) as T,
       signal,
+      status: (text) => this.deps.onStatus?.(pluginId, text),
     };
   }
 

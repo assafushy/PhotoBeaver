@@ -1,4 +1,8 @@
 import { settingsSchemaOf, type PluginManifest } from '@photobeaver/shared/manifest';
+import { DEFAULT_CLUSTER_PARAMS, type ClusterParams } from './faces/clustering';
+import { FaceStore } from './faces/face-store';
+import { FaceVectors } from './faces/face-vectors';
+import { PeopleService } from './faces/people-service';
 import { OAuthBroker } from './oauth/oauth-broker';
 import { SecretsService, type SecretCipher } from './secrets/secrets-service';
 import { availableParallelism } from 'node:os';
@@ -85,6 +89,8 @@ export class Core {
   readonly plugins: PluginManager | null;
   readonly enrichment: EnrichmentSystem;
   readonly secrets: SecretsService;
+  readonly faces: FaceStore;
+  readonly people: PeopleService;
   readonly oauth: OAuthBroker;
   readonly duplicates: DuplicatesService;
   private readonly syncLane: Lane;
@@ -100,11 +106,13 @@ export class Core {
       options.secretCipher ?? NO_SECRET_STORAGE,
     );
     this.oauth = new OAuthBroker({ openExternal: this.openExternal, fetch: options.fetch });
+    this.faces = new FaceStore(new FaceVectors(options.library.sqlite));
     this.registry = this.createRegistry();
     this.scheduler = new Scheduler(options.library.db, this.queue, this.clock);
     const source = new OriginalSource(options.library.db, this.registry);
     this.originals = new OriginalCache(path.join(options.libraryDir, 'cache', 'originals'), source);
     this.enrichment = this.createEnrichment();
+    this.people = this.createPeople();
     this.duplicates = new DuplicatesService(
       options.library.db,
       this.enrichment.merges,
@@ -133,6 +141,7 @@ export class Core {
     this.lanes.forEach((lane) => lane.start());
     this.scheduler.start();
     this.maintenance.start();
+    this.people.scheduleClustering();
     void this.startWatches();
     this.options.logger.info({ recovered }, 'Core started');
   }
@@ -211,7 +220,7 @@ export class Core {
 
   private createCoreLane(): Lane {
     const concurrency = Math.max(1, availableParallelism() - 1);
-    const handlers = { thumbnail: this.thumbnails.run };
+    const handlers = { thumbnail: this.thumbnails.run, cluster_faces: this.people.runClustering };
     return new Lane(this.queue, { name: 'core', concurrency, handlers }, this.options.logger);
   }
 
@@ -251,8 +260,35 @@ export class Core {
       queue: this.queue,
       logger: this.options.logger,
       removeAssetFiles,
+      tidyFaces: () => (this.faces.vectors.pruneOrphans(), this.people.cleanup()),
       clock: this.clock,
     });
+  }
+
+  private createPeople(): PeopleService {
+    return new PeopleService({
+      db: this.options.library.db,
+      vectors: this.faces.vectors,
+      queue: this.queue,
+      events: this.options.events,
+      clusterParams: () => this.clusterParams(),
+      clock: this.clock,
+    });
+  }
+
+  private clusterParams(): ClusterParams {
+    const entry = this.enrichment.registry
+      .list()
+      .find((e) => e.manifest.enricher.produces.includes('faces'));
+    if (!entry) return DEFAULT_CLUSTER_PARAMS;
+    const settings = this.enrichment.settings.get(
+      entry.manifest.id,
+      entry.manifest.configSchema ?? {},
+    );
+    return {
+      maxDistance: Number(settings.clusterDistance ?? DEFAULT_CLUSTER_PARAMS.maxDistance),
+      minFaces: Number(settings.minFacesPerPerson ?? DEFAULT_CLUSTER_PARAMS.minFaces),
+    };
   }
 
   private createPlugins(plugins: PluginSystemOptions): PluginManager {
@@ -291,6 +327,8 @@ export class Core {
       logger,
       clock: this.clock,
       isOnBattery: this.options.isOnBattery ?? (() => false),
+      faces: this.faces,
+      onFacesChanged: () => this.people.scheduleClustering(),
     });
     system.addAll(this.options.enrichers ?? []);
     return system;

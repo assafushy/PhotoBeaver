@@ -4,7 +4,9 @@ export const jobs = sqliteTable(
   'jobs',
   {
     id: integer('id').primaryKey({ autoIncrement: true }),
-    kind: text('kind', { enum: ['sync_source', 'enrich', 'thumbnail', 'plugin_task'] }).notNull(),
+    kind: text('kind', {
+      enum: ['sync_source', 'enrich', 'thumbnail', 'plugin_task', 'cluster_faces'],
+    }).notNull(),
     pluginId: text('plugin_id'),
     sourceId: text('source_id'),
     assetId: text('asset_id'),

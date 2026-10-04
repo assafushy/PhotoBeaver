@@ -17,6 +17,7 @@ export const HOST_METHODS = {
 
 export const CORE_METHODS = {
   log: 'ctx.log',
+  status: 'ctx.status',
   storageGet: 'ctx.storage.get',
   storageSet: 'ctx.storage.set',
   storageDelete: 'ctx.storage.delete',
@@ -90,6 +91,7 @@ export const logParamsSchema = z.object({
   msg: z.string().max(10_000),
   data: z.record(z.string(), z.unknown()).optional(),
 });
+export const statusParamsSchema = z.object({ text: z.string().max(200).nullable() });
 export const storageKeySchema = z.object({ key: z.string().min(1).max(512) });
 export const storageSetSchema = storageKeySchema.extend({ value: z.unknown() });
 export const contextParamsSchema = z.object({ contextId: z.string() });
@@ -218,9 +220,14 @@ export const enrichmentResultSchema = z.object({
   faces: z
     .array(
       z.object({
-        bbox: z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() }),
-        confidence: z.number(),
-        embedding: z.array(z.number()).optional(),
+        bbox: z.object({
+          x: z.number().min(0).max(1),
+          y: z.number().min(0).max(1),
+          w: z.number().min(0).max(1),
+          h: z.number().min(0).max(1),
+        }),
+        confidence: z.number().min(0).max(1),
+        embedding: z.array(z.number().finite()).max(1024).optional(),
       }),
     )
     .max(200)
