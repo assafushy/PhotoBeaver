@@ -5,7 +5,12 @@ import type { Plugin } from 'vite';
 
 const PLUGINS_ROOT = fileURLToPath(new URL('../../../plugins', import.meta.url));
 const TARGET = fileURLToPath(new URL('../out/main/default-plugins', import.meta.url));
-const DEFAULT_PLUGINS = ['connector-local', 'enricher-metadata', 'enricher-geocode', 'enricher-dedup'];
+const DEFAULT_PLUGINS = [
+  'connector-local',
+  'enricher-metadata',
+  'enricher-geocode',
+  'enricher-dedup',
+];
 const SHIPPED_ENTRIES = ['photobeaver-plugin.json', 'dist', 'assets', 'README.md', 'LICENSE'];
 
 function copyPlugin(name: string): void {
