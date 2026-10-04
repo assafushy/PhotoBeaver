@@ -64,6 +64,7 @@ export const manifestSchema = z
     connector: connectorSchema.optional(),
     enricher: enricherSchema.optional(),
     configSchema: z.custom<ConfigSchema>((v) => typeof v === 'object' && v !== null).default({}),
+    settingsSchema: z.custom<ConfigSchema>((v) => typeof v === 'object' && v !== null).optional(),
     default: z.object({ enabledOnInstall: z.boolean() }).optional(),
   })
   .superRefine((manifest, ctx) => {
@@ -87,6 +88,22 @@ export type ConnectorManifest = PluginManifest & {
   connector: NonNullable<PluginManifest['connector']>;
 };
 export type PluginPermissions = PluginManifest['permissions'];
+
+/**
+ * Schema of a plugin's global settings: `configSchema` for enrichers (SPEC 5.2),
+ * `settingsSchema` for connectors, whose `configSchema` is per source.
+ *
+ * @param manifest - Any manifest with the two optional schemas.
+ * @returns The settings schema, or null when the plugin has no settings.
+ */
+export function settingsSchemaOf(manifest: {
+  type: string;
+  configSchema?: ConfigSchema;
+  settingsSchema?: ConfigSchema;
+}): ConfigSchema | null {
+  const schema = manifest.type === 'enricher' ? manifest.configSchema : manifest.settingsSchema;
+  return schema && Object.keys(schema.properties ?? {}).length > 0 ? schema : null;
+}
 
 export type ManifestResult =
   { ok: true; manifest: PluginManifest } | { ok: false; errors: string[] };

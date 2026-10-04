@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url';
-import { BrowserWindow, dialog, shell } from 'electron';
+import { app, BrowserWindow, dialog, shell } from 'electron';
 
 /**
  * Shows a folder picker attached to the focused window.
@@ -24,6 +24,21 @@ export async function pickDirectory(): Promise<string | null> {
 export async function openExternalUrl(url: string): Promise<void> {
   if (url.startsWith('file:')) return shell.showItemInFolder(fileURLToPath(url));
   if (url.startsWith('https:') || url.startsWith('http:')) await shell.openExternal(url);
+}
+
+const NO_BROWSER_ENV = 'PB_E2E_NO_BROWSER';
+
+/**
+ * Opens a sign-in page or other https link from a plugin in the system browser.
+ * e2e tests of unpackaged builds set `PB_E2E_NO_BROWSER` so nothing opens and
+ * the sign-in simply waits.
+ *
+ * @param url - https URL, already checked against the plugin's allowlist.
+ */
+export async function openBrowser(url: string): Promise<void> {
+  if (!url.startsWith('https:')) throw new Error('Only https links can be opened');
+  if (!app.isPackaged && process.env[NO_BROWSER_ENV]) return;
+  await shell.openExternal(url);
 }
 
 /**

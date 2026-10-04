@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { isHostAllowed } from '../../src/plugin-host/permissions/host-allowlist';
+import { isHostAllowed } from '@photobeaver/shared/host-allowlist';
 import { FolderGrants } from '../../src/plugin-host/permissions/filesystem';
 import { isPathAllowed } from '../../src/plugin-host/permissions/path-guard';
 import {

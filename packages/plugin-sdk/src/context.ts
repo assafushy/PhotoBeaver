@@ -37,12 +37,21 @@ export interface OAuthAuthorizeOptions {
   clientId: string;
   scopes: string[];
   extraParams?: Record<string, string>;
+  /** Sent to the token endpoint for providers whose desktop clients have one (Google). */
+  clientSecret?: string;
+  /** Loopback host for the redirect URI. Defaults to 127.0.0.1. */
+  redirectHost?: '127.0.0.1' | 'localhost';
+  /** Ports to try in order, for providers that need an exact registered redirect URI. */
+  redirectPorts?: number[];
 }
 
 export interface OAuthRefreshOptions {
   tokenUrl: string;
   clientId: string;
   refreshToken: string;
+  clientSecret?: string;
+  /** Sent with the refresh request; some providers (Microsoft) expect it. */
+  scopes?: string[];
 }
 
 export interface SourceContext<Config> extends PluginContext {
@@ -59,6 +68,8 @@ export interface SourceContext<Config> extends PluginContext {
   ui: {
     pickDirectory(): Promise<string | null>;
     notify(msg: string, level?: 'info' | 'warn' | 'error'): void;
+    /** Opens an https URL on a host in the plugin's network allowlist in the system browser. */
+    openExternal(url: string): Promise<void>;
   };
 }
 

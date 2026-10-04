@@ -9,6 +9,9 @@ import type {
   SyncContext,
   SyncProgress,
 } from '@photobeaver/plugin-sdk';
+import { isHostAllowed } from '@photobeaver/shared/host-allowlist';
+import type { OAuthBroker } from '../oauth/oauth-broker';
+import { sourceSecretRef, type SecretsService } from '../secrets/secrets-service';
 import type { ConnectorManifest } from './manifest';
 import { createPluginStorage } from './plugin-storage';
 
@@ -32,6 +35,11 @@ export interface RegistryDeps {
   pluginDataRoot: string;
   logger: CoreLog;
   pickDirectory: () => Promise<string | null>;
+  secrets: SecretsService;
+  oauth: OAuthBroker;
+  openExternal(url: string): Promise<void>;
+  settings(manifest: ConnectorManifest): Record<string, unknown>;
+  fetch?: typeof fetch;
 }
 
 export interface SyncHooks {
@@ -40,9 +48,23 @@ export interface SyncHooks {
   isKnown: SyncContext<unknown>['isKnown'];
 }
 
-const unavailable = (feature: string) => async (): Promise<never> => {
-  throw new Error(`${feature} is not available until a later milestone`);
-};
+/**
+ * Allows `ctx.ui.openExternal` only for https URLs on the plugin's declared hosts,
+ * so a plugin can't open arbitrary sites.
+ *
+ * @param url - URL to open.
+ * @param network - The plugin's `permissions.network`.
+ */
+export function assertExternalUrl(url: string, network: readonly string[]): void {
+  const parsed = new URL(url);
+  if (parsed.protocol !== 'https:' || !isHostAllowed(parsed.hostname, network))
+    throw new Error(`Opening ${parsed.origin} is not allowed by this plugin's permissions`);
+}
+
+function networkOf(manifest: ConnectorManifest): string[] {
+  const network = manifest.permissions?.network;
+  return Array.isArray(network) ? network.filter((host) => typeof host === 'string') : [];
+}
 
 function pluginLogger(logger: CoreLog): Logger {
   return {
@@ -113,16 +135,53 @@ export class ConnectorRegistry {
     source: Pick<SourceRow, 'id' | 'pluginId'> & { config: unknown },
     signal: AbortSignal,
   ): SourceContext<unknown> {
+    const manifest = this.manifestOf(source.pluginId);
     return {
       ...this.pluginContext(source.pluginId, signal),
       sourceId: source.id,
       config: source.config,
-      secret: { get: async () => undefined, set: unavailable('Secret storage') },
-      oauth: { authorize: unavailable('OAuth'), refresh: unavailable('OAuth') },
-      ui: {
-        pickDirectory: this.deps.pickDirectory,
-        notify: (msg, level = 'info') =>
-          this.deps.logger[level === 'warn' ? 'warn' : level]({ sourceId: source.id }, msg),
+      secret: this.secretApi(sourceSecretRef(source.id)),
+      oauth: this.oauthApi(manifest, signal),
+      ui: this.uiApi(source.id, manifest),
+    };
+  }
+
+  private manifestOf(pluginId: string): ConnectorManifest {
+    const entry = this.entries.get(pluginId);
+    if (!entry) throw new Error(`Connector ${pluginId} is not loaded`);
+    return entry.manifest;
+  }
+
+  private secretApi(ref: string): SourceContext<unknown>['secret'] {
+    return {
+      get: async () => this.deps.secrets.get(ref),
+      set: async (value) => this.deps.secrets.set(ref, value),
+    };
+  }
+
+  private oauthApi(
+    manifest: ConnectorManifest,
+    signal: AbortSignal,
+  ): SourceContext<unknown>['oauth'] {
+    const permissions = {
+      oauth: manifest.permissions?.oauth === true,
+      network: networkOf(manifest),
+    };
+    const plugin = { id: manifest.id, permissions };
+    return {
+      authorize: (opts) => this.deps.oauth.authorize(plugin, opts, signal),
+      refresh: (opts) => this.deps.oauth.refresh(plugin, opts),
+    };
+  }
+
+  private uiApi(sourceId: string, manifest: ConnectorManifest): SourceContext<unknown>['ui'] {
+    return {
+      pickDirectory: this.deps.pickDirectory,
+      notify: (msg, level = 'info') =>
+        this.deps.logger[level === 'warn' ? 'warn' : level]({ sourceId }, msg),
+      openExternal: async (url) => {
+        assertExternalUrl(url, networkOf(manifest));
+        await this.deps.openExternal(url);
       },
     };
   }
@@ -158,10 +217,15 @@ export class ConnectorRegistry {
       log: pluginLogger(this.deps.logger.child({ pluginId })),
       storage: createPluginStorage(this.deps.db, pluginId),
       dataDir,
-      fetch: globalThis.fetch,
-      settings: async <T>() => ({}) as T,
+      fetch: this.deps.fetch ?? globalThis.fetch,
+      settings: async <T>() => this.settingsOf(pluginId) as T,
       signal,
     };
+  }
+
+  private settingsOf(pluginId: string): Record<string, unknown> {
+    const entry = this.entries.get(pluginId);
+    return entry ? this.deps.settings(entry.manifest) : {};
   }
 
   private upsertPluginRow(manifest: ConnectorManifest, now: number): void {

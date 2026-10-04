@@ -18,7 +18,12 @@
     "fixtures": "node scripts/generate-fixtures.ts"
   },
   "devDependencies": {
+    "@photobeaver/connector-dropbox": "workspace:*",
+    "@photobeaver/connector-facebook-export": "workspace:*",
+    "@photobeaver/connector-google-photos": "workspace:*",
+    "@photobeaver/connector-instagram-export": "workspace:*",
     "@photobeaver/connector-local": "workspace:*",
+    "@photobeaver/connector-onedrive": "workspace:*",
     "@photobeaver/db": "workspace:*",
     "@photobeaver/enricher-dedup": "workspace:*",
     "@photobeaver/enricher-geocode": "workspace:*",

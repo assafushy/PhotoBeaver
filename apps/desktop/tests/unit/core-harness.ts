@@ -12,7 +12,7 @@ import { OriginalSource } from '../../src/main/core/originals/original-source';
 import { BatchWriter } from '../../src/main/core/sync/batch-writer';
 import { SyncRunner } from '../../src/main/core/sync/sync-runner';
 import { ThumbnailService } from '../../src/main/core/thumbnails/thumbnail-service';
-import { insertSource, silentCoreLog, type TempLibrary } from './helpers';
+import { insertSource, silentCoreLog, testRegistryDeps, type TempLibrary } from './helpers';
 
 export const LOCAL_ID = 'com.photobeaver.connector-local';
 
@@ -25,12 +25,10 @@ export const LOCAL_ID = 'com.photobeaver.connector-local';
 export function localHarness(temp: TempLibrary) {
   const db = temp.library.db;
   const entry = { manifest: localManifest as ConnectorManifest, plugin: localConnector as never };
-  const registry = new ConnectorRegistry([entry], {
-    db,
-    pluginDataRoot: path.join(temp.dir, 'pd'),
-    logger: silentCoreLog,
-    pickDirectory: async () => null,
-  });
+  const registry = new ConnectorRegistry(
+    [entry],
+    testRegistryDeps(temp, path.join(temp.dir, 'pd')),
+  );
   registry.registerBuiltins(0);
   const queue = new JobQueue(temp.library.sqlite);
   const source = new OriginalSource(db, registry);

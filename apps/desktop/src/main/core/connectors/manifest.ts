@@ -15,4 +15,5 @@ export interface ConnectorManifest {
     multipleSources?: boolean;
   };
   configSchema?: ConfigSchema;
+  settingsSchema?: ConfigSchema;
 }

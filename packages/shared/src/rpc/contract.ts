@@ -25,6 +25,9 @@ export const CORE_METHODS = {
   secretSet: 'ctx.secret.set',
   pickDirectory: 'ctx.ui.pickDirectory',
   notify: 'ctx.ui.notify',
+  openExternal: 'ctx.ui.openExternal',
+  oauthAuthorize: 'ctx.oauth.authorize',
+  oauthRefresh: 'ctx.oauth.refresh',
   isKnown: 'ctx.sync.isKnown',
   progress: 'ctx.sync.progress',
   watchChange: 'watch.change',
@@ -92,6 +95,29 @@ export const storageSetSchema = storageKeySchema.extend({ value: z.unknown() });
 export const contextParamsSchema = z.object({ contextId: z.string() });
 export const secretSetSchema = contextParamsSchema.extend({
   value: z.record(z.string(), z.unknown()),
+});
+export const openExternalSchema = contextParamsSchema.extend({ url: z.url().max(4000) });
+const httpsUrl = z.url().max(4000);
+export const oauthAuthorizeSchema = contextParamsSchema.extend({
+  options: z.object({
+    authUrl: httpsUrl,
+    tokenUrl: httpsUrl,
+    clientId: z.string().min(1).max(500),
+    scopes: z.array(z.string().max(500)).max(50),
+    extraParams: z.record(z.string(), z.string().max(2000)).optional(),
+    clientSecret: z.string().max(500).optional(),
+    redirectHost: z.enum(['127.0.0.1', 'localhost']).optional(),
+    redirectPorts: z.array(z.number().int().min(1024).max(65535)).max(10).optional(),
+  }),
+});
+export const oauthRefreshSchema = contextParamsSchema.extend({
+  options: z.object({
+    tokenUrl: httpsUrl,
+    clientId: z.string().min(1).max(500),
+    refreshToken: z.string().min(1).max(10_000),
+    clientSecret: z.string().max(500).optional(),
+    scopes: z.array(z.string().max(500)).max(50).optional(),
+  }),
 });
 export const notifyParamsSchema = contextParamsSchema.extend({
   msg: z.string().max(2000),

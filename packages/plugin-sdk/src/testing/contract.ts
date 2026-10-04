@@ -1,6 +1,7 @@
 import type { ConnectorPlugin } from '../connector';
 import type { KnownItemState } from '../context';
 import type { MediaItem } from '../media';
+import type { FakeContextOptions } from './fake-context';
 import { runSync, type RunSyncResult } from './run-sync';
 
 export const MAX_BATCH_SIZE = 1000;
@@ -8,6 +9,8 @@ export const MAX_BATCH_SIZE = 1000;
 export interface ConnectorFixture {
   config: unknown;
   removeOne(): Promise<string>;
+  /** Fake host options for every sync, e.g. a fake API `fetch` and a seeded `secret`. */
+  context?: Omit<FakeContextOptions, 'known'>;
 }
 
 export interface ContractCheck {
@@ -32,7 +35,7 @@ function sameMembers(left: string[], right: string[]): boolean {
 }
 
 function fullSync(plugin: Plugin, fixture: ConnectorFixture): Promise<RunSyncResult> {
-  return runSync(plugin, { config: fixture.config });
+  return runSync(plugin, { config: fixture.config, context: fixture.context });
 }
 
 function knownFrom(items: MediaItem[]): Record<string, KnownItemState> {
@@ -72,7 +75,11 @@ async function checkResume(plugin: Plugin, fixture: ConnectorFixture): Promise<v
   if (dataBatches.length < 2) return;
   const first = batches[0]!;
   const remaining = ids(items).slice(first.upserts?.length ?? 0);
-  const resumed = await runSync(plugin, { config: fixture.config, cursor: first.cursor });
+  const resumed = await runSync(plugin, {
+    config: fixture.config,
+    cursor: first.cursor,
+    context: fixture.context,
+  });
   assert(
     sameMembers(ids(resumed.items), remaining),
     `resuming from the first cursor yielded ${resumed.items.length} items, expected ${remaining.length}`,
@@ -82,7 +89,7 @@ async function checkResume(plugin: Plugin, fixture: ConnectorFixture): Promise<v
 async function checkIdempotent(plugin: Plugin, fixture: ConnectorFixture): Promise<void> {
   const first = await fullSync(plugin, fixture);
   const known = knownFrom(first.items);
-  const second = await runSync(plugin, { config: fixture.config, known });
+  const second = await runSync(plugin, { config: fixture.config, known, context: fixture.context });
   assert(
     second.items.length === 0,
     `a re-sync with every item known yielded ${second.items.length} upserts`,

@@ -1,9 +1,11 @@
 import { validateConfig, type ConnectorInfo } from '@photobeaver/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { buttonStyles, Modal } from '../components/Modal';
 import { ConfigForm } from './ConfigForm';
+import { SetupError, SetupWaiting } from './SetupWaiting';
+import { useCancellableSetup } from './use-setup';
 
 function defaultsOf(connector: ConnectorInfo): Record<string, unknown> {
   const entries = Object.entries(connector.configSchema.properties ?? {}).filter(
@@ -18,7 +20,7 @@ function ConnectorPicker({ onPick }: { onPick(c: ConnectorInfo): void }) {
     queryFn: () => window.pb.sources.connectors(),
   });
   return (
-    <ul className="space-y-2">
+    <ul className="max-h-[60vh] space-y-2 overflow-y-auto">
       {data.map((connector) => (
         <li key={connector.id}>
           <button
@@ -45,18 +47,18 @@ function useSetupForm(connector: ConnectorInfo, onDone: () => void) {
   const client = useQueryClient();
   const [values, setValues] = useState(() => defaultsOf(connector));
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const add = useMutation({
-    mutationFn: (config: Record<string, unknown>) =>
-      window.pb.sources.add({ pluginId: connector.id, config }),
-    onSuccess: () => (void client.invalidateQueries({ queryKey: ['sources'] }), onDone()),
-  });
+  const setup = useCancellableSetup(
+    (config: Record<string, unknown>, setupId: string) =>
+      window.pb.sources.add({ pluginId: connector.id, config, setupId }),
+    () => (void client.invalidateQueries({ queryKey: ['sources'] }), onDone()),
+  );
   const submit = () => {
     const result = validateConfig(connector.configSchema, values);
     setErrors(result.ok ? {} : result.errors);
-    if (result.ok) add.mutate(result.value);
+    if (result.ok) setup.mutation.mutate(result.value);
   };
   const change = (k: string, v: unknown) => setValues((prev) => ({ ...prev, [k]: v }));
-  return { values, errors, add, submit, change };
+  return { values, errors, setup, submit, change };
 }
 
 function SetupActions({ pending, onBack }: { pending: boolean; onBack(): void }) {
@@ -74,7 +76,7 @@ function SetupActions({ pending, onBack }: { pending: boolean; onBack(): void })
 }
 
 function SetupStep({ connector, onDone, onBack }: SetupStepProps) {
-  const { values, errors, add, submit, change } = useSetupForm(connector, onDone);
+  const { values, errors, setup, submit, change } = useSetupForm(connector, onDone);
   return (
     <form onSubmit={(e) => (e.preventDefault(), submit())} className="space-y-4">
       <ConfigForm
@@ -83,12 +85,12 @@ function SetupStep({ connector, onDone, onBack }: SetupStepProps) {
         errors={errors}
         onChange={change}
       />
-      {add.error && (
-        <p role="alert" className="text-sm text-red-600">
-          {add.error.message}
-        </p>
+      {setup.error && <SetupError error={setup.error} />}
+      {setup.mutation.isPending ? (
+        <SetupWaiting usesOAuth={connector.usesOAuth} onCancel={setup.cancel} />
+      ) : (
+        <SetupActions pending={false} onBack={onBack} />
       )}
-      <SetupActions pending={add.isPending} onBack={onBack} />
     </form>
   );
 }

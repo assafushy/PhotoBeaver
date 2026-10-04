@@ -1,3 +1,6 @@
+import { settingsSchemaOf, type PluginManifest } from '@photobeaver/shared/manifest';
+import { OAuthBroker } from './oauth/oauth-broker';
+import { SecretsService, type SecretCipher } from './secrets/secrets-service';
 import { availableParallelism } from 'node:os';
 import path from 'node:path';
 import { schema, type OpenLibrary } from '@photobeaver/db';
@@ -50,7 +53,21 @@ export interface CoreOptions {
   syncBatchDelayMs?: number;
   enrichers?: EnricherEntry[];
   isOnBattery?: () => boolean;
+  secretCipher?: SecretCipher;
+  openExternal?: (url: string) => Promise<void>;
+  fetch?: typeof fetch;
 }
+
+const notConfigured = (feature: string) => (): never => {
+  throw new Error(`${feature} is not configured`);
+};
+
+const NO_SECRET_STORAGE: SecretCipher = {
+  encrypt: notConfigured('Secret storage'),
+  decrypt: notConfigured('Secret storage'),
+};
+
+const NO_BROWSER = async (): Promise<never> => notConfigured('Opening links')();
 
 /**
  * Composition root of the core services (no Electron imports, so it runs headless
@@ -67,6 +84,8 @@ export class Core {
   readonly sources: SourceService;
   readonly plugins: PluginManager | null;
   readonly enrichment: EnrichmentSystem;
+  readonly secrets: SecretsService;
+  readonly oauth: OAuthBroker;
   readonly duplicates: DuplicatesService;
   private readonly syncLane: Lane;
   private readonly lanes: Lane[];
@@ -76,6 +95,11 @@ export class Core {
   constructor(private readonly options: CoreOptions) {
     this.clock = options.clock ?? systemClock;
     this.queue = new JobQueue(options.library.sqlite, this.clock);
+    this.secrets = new SecretsService(
+      options.library.db,
+      options.secretCipher ?? NO_SECRET_STORAGE,
+    );
+    this.oauth = new OAuthBroker({ openExternal: this.openExternal, fetch: options.fetch });
     this.registry = this.createRegistry();
     this.scheduler = new Scheduler(options.library.db, this.queue, this.clock);
     const source = new OriginalSource(options.library.db, this.registry);
@@ -132,13 +156,23 @@ export class Core {
 
   private createRegistry(): ConnectorRegistry {
     const { db } = this.options.library;
-    const { pluginDataRoot, logger, pickDirectory } = this.options;
+    const { pluginDataRoot, logger, pickDirectory, fetch } = this.options;
     return new ConnectorRegistry(this.options.connectors ?? [], {
       db,
       pluginDataRoot,
       logger,
       pickDirectory,
+      fetch,
+      secrets: this.secrets,
+      oauth: this.oauth,
+      openExternal: this.openExternal,
+      settings: (manifest) =>
+        this.enrichment.settings.get(manifest.id, settingsSchemaOf(manifest) ?? {}),
     });
+  }
+
+  private get openExternal(): (url: string) => Promise<void> {
+    return this.options.openExternal ?? NO_BROWSER;
   }
 
   private createThumbnails(source: OriginalSource): ThumbnailService {
@@ -201,6 +235,8 @@ export class Core {
       scheduler: this.scheduler,
       events: this.options.events,
       removeAssetFiles: (ids) => this.removeAssetFiles(ids),
+      secrets: this.secrets,
+      pluginDataRoot: this.options.pluginDataRoot,
       clock: this.clock,
       abortSync: (id) => this.syncLane.abortWhere((job) => job.source_id === id),
       onSourceChanged: (id) => void this.watches.refresh(id).catch(() => undefined),
@@ -276,8 +312,8 @@ export class Core {
       logger: this.options.logger,
       pluginLog: plugins.pluginLog,
       storage: (id: string) => createPluginStorage(db, id),
-      settings: (manifest: { id: string; configSchema: object }) =>
-        this.enrichment.settings.get(manifest.id, manifest.configSchema),
+      settings: (manifest: PluginManifest) =>
+        this.enrichment.settings.get(manifest.id, settingsSchemaOf(manifest) ?? {}),
       clock: this.clock,
     };
   }

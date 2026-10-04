@@ -89,7 +89,11 @@
       "auth_required": "Needs reconnecting",
       "paused": "Paused"
     },
-    "connectorMissing": "The connector for this source is not installed or is disabled. Enable it in Plugins."
+    "connectorMissing": "The connector for this source is not installed or is disabled. Enable it in Plugins.",
+    "reconnect": "Reconnect",
+    "waitingForSignIn": "Finish signing in in your browser. This updates when you are done.",
+    "settingUp": "Setting up the source",
+    "openPluginSettings": "Open plugin settings"
   },
   "placeholder": {
     "comingSoon": "This screen arrives in a later milestone."

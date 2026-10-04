@@ -1,0 +1,59 @@
+{
+  "id": "com.photobeaver.connector-onedrive",
+  "name": "OneDrive",
+  "version": "0.1.0",
+  "type": "connector",
+  "apiVersion": "1",
+  "main": "dist/index.js",
+  "description": "Index photos and videos from your Microsoft OneDrive, with incremental sync through the Microsoft Graph delta API.",
+  "author": { "name": "Photo Beaver" },
+  "license": "MIT",
+  "engines": { "photobeaver": ">=0.1.0" },
+  "default": { "enabledOnInstall": true },
+  "permissions": {
+    "network": [
+      "login.microsoftonline.com",
+      "graph.microsoft.com",
+      "*.1drv.com",
+      "*.files.1drv.com",
+      "*.livefilestore.com",
+      "*.sharepoint.com",
+      "*.microsoftpersonalcontent.com",
+      "*.svc.ms"
+    ],
+    "filesystem": "none",
+    "oauth": true,
+    "nativeModules": false,
+    "gpu": false
+  },
+  "connector": {
+    "syncModes": ["poll"],
+    "defaultIntervalSec": 3600,
+    "minIntervalSec": 600,
+    "supportsIncremental": true,
+    "providesContentHash": true,
+    "rateLimit": { "requests": 20, "perSec": 1 },
+    "multipleSources": true
+  },
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "folder": {
+        "type": "string",
+        "title": "OneDrive folder",
+        "description": "Leave empty for your whole OneDrive",
+        "default": ""
+      }
+    }
+  },
+  "settingsSchema": {
+    "type": "object",
+    "properties": {
+      "clientId": {
+        "type": "string",
+        "title": "Application (client) ID",
+        "description": "From your app registration in the Microsoft Entra admin center. See the plugin README for a step-by-step guide."
+      }
+    }
+  }
+}

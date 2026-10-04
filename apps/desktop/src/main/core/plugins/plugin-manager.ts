@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { schema, type LibraryDb } from '@photobeaver/db';
 import type { PluginSummary, StagedPackageSummary } from '@photobeaver/shared';
-import type { PluginManifest } from '@photobeaver/shared/manifest';
+import { settingsSchemaOf, type PluginManifest } from '@photobeaver/shared/manifest';
 import { eq } from 'drizzle-orm';
 import { ulid } from 'ulid';
 import { writeAudit } from '../audit';
@@ -310,11 +310,8 @@ export class PluginManager {
    * @returns Schema and values with defaults applied.
    */
   settingsOf(id: string): { configSchema: ConfigSchema; values: Record<string, unknown> } {
-    const manifest = this.manifestOf(id);
-    return {
-      configSchema: manifest.configSchema,
-      values: this.deps.settings.get(id, manifest.configSchema),
-    };
+    const schema = this.settingsSchemaFor(id);
+    return { configSchema: schema, values: this.deps.settings.get(id, schema) };
   }
 
   /**
@@ -325,9 +322,13 @@ export class PluginManager {
    * @param userId - Acting user.
    */
   setSettings(id: string, values: Record<string, unknown>, userId: string): void {
-    this.deps.settings.set(id, this.manifestOf(id).configSchema, values);
+    this.deps.settings.set(id, this.settingsSchemaFor(id), values);
     this.audit(userId, 'plugin.settings', id);
     this.changed();
+  }
+
+  private settingsSchemaFor(id: string): ConfigSchema {
+    return settingsSchemaOf(this.manifestOf(id)) ?? {};
   }
 
   private manifestOf(id: string): PluginManifest {

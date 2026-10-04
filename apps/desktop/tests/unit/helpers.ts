@@ -1,3 +1,6 @@
+import type { RegistryDeps } from '../../src/main/core/connectors/registry';
+import { OAuthBroker } from '../../src/main/core/oauth/oauth-broker';
+import { SecretsService } from '../../src/main/core/secrets/secrets-service';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -124,3 +127,34 @@ export const silentCoreLog = {
   warn: noop,
   error: noop,
 };
+
+/**
+ * Reversible fake for safeStorage: base64 with a marker, so tests can assert that
+ * stored ciphertext is not the plain JSON.
+ */
+export const fakeCipher = {
+  encrypt: (plaintext: string) => Buffer.from(`enc:${Buffer.from(plaintext).toString('base64')}`),
+  decrypt: (ciphertext: Buffer) =>
+    Buffer.from(ciphertext.toString().replace(/^enc:/, ''), 'base64').toString(),
+};
+
+/**
+ * Registry dependencies for tests that build a `ConnectorRegistry` directly.
+ *
+ * @param temp - Temp library.
+ * @param pluginDataRoot - Plugin data folder.
+ * @returns Dependencies with a fake cipher and no browser.
+ */
+export function testRegistryDeps(temp: TempLibrary, pluginDataRoot: string): RegistryDeps {
+  const openExternal = async () => undefined;
+  return {
+    db: temp.library.db,
+    pluginDataRoot,
+    logger: silentCoreLog,
+    pickDirectory: async () => null,
+    secrets: new SecretsService(temp.library.db, fakeCipher),
+    oauth: new OAuthBroker({ openExternal }),
+    openExternal,
+    settings: () => ({}),
+  };
+}

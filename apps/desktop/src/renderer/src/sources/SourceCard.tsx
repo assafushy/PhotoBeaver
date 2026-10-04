@@ -1,9 +1,11 @@
 import type { PbEvents, SourceSummary } from '@photobeaver/shared';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ErrorText } from '../components/ErrorText';
 import { buttonStyles, Modal } from '../components/Modal';
+import { SetupError, SetupWaiting } from './SetupWaiting';
+import { useCancellableSetup } from './use-setup';
 
 const relative = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
 
@@ -121,12 +123,36 @@ function SyncNowButton({ source }: { source: SourceSummary }) {
   );
 }
 
-function Actions({ source }: { source: SourceSummary }) {
+function ReconnectButton({ source, usesOAuth }: { source: SourceSummary; usesOAuth: boolean }) {
+  const { t } = useTranslation();
+  const setup = useCancellableSetup(
+    (_: void, setupId: string) => window.pb.sources.reconnect(source.id, setupId),
+    () => undefined,
+  );
+  if (setup.mutation.isPending)
+    return <SetupWaiting usesOAuth={usesOAuth} onCancel={setup.cancel} />;
+  return (
+    <>
+      <button
+        type="button"
+        className={buttonStyles.primary}
+        onClick={() => setup.mutation.mutate()}
+      >
+        {t('sources.reconnect')}
+      </button>
+      {setup.error && <SetupError error={setup.error} />}
+    </>
+  );
+}
+
+function Actions({ source, usesOAuth }: { source: SourceSummary; usesOAuth: boolean }) {
   const { t } = useTranslation();
   const paused = source.syncState === 'paused';
+  const needsAuth = source.syncState === 'auth_required';
   return (
     <div className="flex flex-wrap gap-2">
-      {!paused && <SyncNowButton source={source} />}
+      {needsAuth && <ReconnectButton source={source} usesOAuth={usesOAuth} />}
+      {!paused && !needsAuth && <SyncNowButton source={source} />}
       <button
         type="button"
         className={buttonStyles.secondary}
@@ -168,6 +194,14 @@ function SourceDetails({ source, progress }: { source: SourceSummary; progress?:
 /**
  * One connected source: name, location, item count, status, live progress and actions.
  */
+function useUsesOAuth(pluginId: string): boolean {
+  const { data } = useQuery({
+    queryKey: ['connectors'],
+    queryFn: () => window.pb.sources.connectors(),
+  });
+  return data?.find((connector) => connector.id === pluginId)?.usesOAuth ?? false;
+}
+
 export function SourceCard({ source, progress }: { source: SourceSummary; progress?: Progress }) {
   const { t } = useTranslation();
   return (
@@ -181,7 +215,7 @@ export function SourceCard({ source, progress }: { source: SourceSummary; progre
           {t('library.count', { count: source.itemCount })}
         </span>
       </div>
-      <Actions source={source} />
+      <Actions source={source} usesOAuth={useUsesOAuth(source.pluginId)} />
     </li>
   );
 }

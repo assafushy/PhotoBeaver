@@ -1,0 +1,39 @@
+{
+  "id": "com.photobeaver.connector-instagram-export",
+  "name": "Instagram export",
+  "version": "0.1.0",
+  "type": "connector",
+  "apiVersion": "1",
+  "main": "dist/index.js",
+  "description": "Import photos and videos from your Instagram data download (JSON format), as a folder or the downloaded .zip files.",
+  "author": { "name": "Photo Beaver" },
+  "license": "MIT",
+  "engines": { "photobeaver": ">=0.1.0" },
+  "default": { "enabledOnInstall": true },
+  "permissions": {
+    "network": [],
+    "filesystem": "user-selected",
+    "oauth": false,
+    "nativeModules": false,
+    "gpu": false
+  },
+  "connector": {
+    "syncModes": ["manual"],
+    "defaultIntervalSec": 86400,
+    "supportsIncremental": false,
+    "providesContentHash": false,
+    "multipleSources": true
+  },
+  "configSchema": {
+    "type": "object",
+    "required": ["root"],
+    "properties": {
+      "root": {
+        "type": "string",
+        "format": "directory",
+        "title": "Export folder",
+        "description": "Folder with your extracted export or its .zip files"
+      }
+    }
+  }
+}

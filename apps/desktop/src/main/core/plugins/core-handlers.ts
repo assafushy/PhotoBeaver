@@ -1,10 +1,18 @@
-import type { PluginStorage, SyncBatch } from '@photobeaver/plugin-sdk';
+import type {
+  OAuthAuthorizeOptions,
+  OAuthRefreshOptions,
+  PluginStorage,
+  SyncBatch,
+} from '@photobeaver/plugin-sdk';
 import {
   contextParamsSchema,
   CORE_METHODS,
   isKnownParamsSchema,
   logParamsSchema,
   notifyParamsSchema,
+  oauthAuthorizeSchema,
+  oauthRefreshSchema,
+  openExternalSchema,
   progressParamsSchema,
   secretSetSchema,
   storageKeySchema,
@@ -28,6 +36,7 @@ type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 const contextIdOf = (raw: unknown): string => (raw as { contextId: string }).contextId;
 const keyOf = (raw: unknown): string => (raw as { key: string }).key;
+const optionsOf = <T>(raw: unknown): T => (raw as { options: T }).options;
 
 function registerLogCall(peer: RpcPeer, deps: CoreHandlerDeps): void {
   peer.onNotification(
@@ -97,9 +106,32 @@ function registerUiCalls(peer: RpcPeer, { contexts }: CoreHandlerDeps): void {
   );
 }
 
+function registerOpenExternalCall(peer: RpcPeer, { contexts }: CoreHandlerDeps): void {
+  peer.handle(
+    CORE_METHODS.openExternal,
+    (raw) => contexts.get(contextIdOf(raw)).ui.openExternal((raw as { url: string }).url),
+    validatorOf(openExternalSchema),
+  );
+}
+
+function registerOAuthCalls(peer: RpcPeer, { contexts }: CoreHandlerDeps): void {
+  peer.handle(
+    CORE_METHODS.oauthAuthorize,
+    (raw) => contexts.get(contextIdOf(raw)).oauth.authorize(optionsOf<OAuthAuthorizeOptions>(raw)),
+    validatorOf(oauthAuthorizeSchema),
+  );
+  peer.handle(
+    CORE_METHODS.oauthRefresh,
+    (raw) => contexts.get(contextIdOf(raw)).oauth.refresh(optionsOf<OAuthRefreshOptions>(raw)),
+    validatorOf(oauthRefreshSchema),
+  );
+}
+
 function registerSourceCalls(peer: RpcPeer, deps: CoreHandlerDeps): void {
   registerSecretCalls(peer, deps);
   registerUiCalls(peer, deps);
+  registerOpenExternalCall(peer, deps);
+  registerOAuthCalls(peer, deps);
 }
 
 function registerIsKnownCall(peer: RpcPeer, { contexts }: CoreHandlerDeps): void {
@@ -148,8 +180,8 @@ function registerSyncCalls(peer: RpcPeer, deps: CoreHandlerDeps): void {
 
 /**
  * Serves what a plugin host may ask of core (SPEC 6.4): logging, storage,
- * settings, secrets, the folder picker, notifications, sync callbacks and
- * watch events. Every payload is validated before use (SPEC 6.5).
+ * settings, secrets, OAuth, the folder picker, opening links, notifications,
+ * sync callbacks and watch events. Every payload is validated before use (SPEC 6.5).
  *
  * @param peer - RPC peer connected to the host.
  * @param deps - Contexts, storage, plugin log and settings.

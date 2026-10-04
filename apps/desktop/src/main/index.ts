@@ -25,13 +25,31 @@ async function onReady(): Promise<void> {
   openWindow();
 }
 
+const SHUTDOWN_DEADLINE_MS = 10_000;
+const QUIT_BACKSTOP_MS = 5_000;
+
+function deadline(ms: number): Promise<'timeout'> {
+  return new Promise((resolve) => setTimeout(() => resolve('timeout'), ms));
+}
+
+/**
+ * Stops core cleanly, then quits. Quitting must never hang: if shutdown takes
+ * longer than the deadline, or Electron's own quit stalls, the process exits
+ * anyway (the database is in WAL mode and every job is durable).
+ */
 async function shutdownThenQuit(): Promise<void> {
-  try {
-    await running?.shutdown();
-  } finally {
-    running = null;
-    app.quit();
-  }
+  const current = running;
+  running = null;
+  const outcome = await Promise.race([
+    (current?.shutdown() ?? Promise.resolve()).then(
+      () => 'done' as const,
+      () => 'done' as const,
+    ),
+    deadline(SHUTDOWN_DEADLINE_MS),
+  ]);
+  if (outcome === 'timeout') current?.logger.warn({}, 'Shutdown deadline passed, exiting');
+  setTimeout(() => app.exit(0), outcome === 'timeout' ? 0 : QUIT_BACKSTOP_MS);
+  if (outcome === 'done') app.quit();
 }
 
 function registerAppEvents(): void {

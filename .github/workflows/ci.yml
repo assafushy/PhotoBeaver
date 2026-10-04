@@ -32,7 +32,8 @@ jobs:
 
       - run: pnpm typecheck
 
-      - run: pnpm test
+      - name: Test (two packages at a time, so CPU-heavy suites keep their timeouts)
+        run: pnpm exec turbo run test --concurrency=2
 
       - run: pnpm build
 
@@ -50,6 +51,23 @@ jobs:
       - name: E2E
         if: matrix.os != 'ubuntu-latest'
         run: pnpm --filter @photobeaver/desktop e2e
+
+      - name: Collect app logs and leftover processes
+        if: failure()
+        shell: pwsh
+        run: |
+          Get-Process | Where-Object { $_.ProcessName -match 'electron|Photo' } | Format-Table Id, ProcessName, StartTime -AutoSize | Out-String | Write-Host
+          New-Item -ItemType Directory -Force e2e-logs | Out-Null
+          Get-ChildItem ([System.IO.Path]::GetTempPath()) -Directory -Filter 'pb-e2e-*' | ForEach-Object {
+            if (Test-Path (Join-Path $_.FullName 'logs')) { Copy-Item (Join-Path $_.FullName 'logs') (Join-Path 'e2e-logs' $_.Name) -Recurse }
+          }
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-logs-${{ matrix.os }}
+          path: e2e-logs
+          if-no-files-found: ignore
 
       - uses: actions/upload-artifact@v4
         if: failure()

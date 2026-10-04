@@ -63,6 +63,8 @@ const api: PbApi = {
     connectors: () => invoke('sources.connectors'),
     add: (input) => invoke('sources.add', input),
     remove: byId('sources.remove'),
+    reconnect: (id, setupId) => invoke('sources.reconnect', { id, setupId }),
+    cancelSetup: (setupId) => invoke('sources.cancelSetup', { setupId }),
     pickDirectory: () => invoke('sources.pickDirectory'),
     syncNow: byId('sources.syncNow'),
     pause: byId('sources.pause'),

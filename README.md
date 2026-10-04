@@ -44,6 +44,9 @@ Also available in any build: `PB_DEV_SOCKET` sets the developer socket path that
 - `packages/create-photobeaver-plugin`: `npm create photobeaver-plugin` project scaffolder
 - `apps/desktop/src/plugin-host`: the process each plugin runs in
 - `plugins/connector-local`: the default local folder connector (imports only from the SDK)
+- `plugins/connector-dropbox`, `plugins/connector-onedrive`, `plugins/connector-google-photos`: cloud connectors (sign in once per source; register your own app as each README explains)
+- `plugins/connector-facebook-export`, `plugins/connector-instagram-export`: import Meta data downloads, read in place from a folder or the downloaded .zip files
 - `plugins/enricher-metadata`, `plugins/enricher-geocode`, `plugins/enricher-dedup`: the default enrichers (capture date, camera and GPS; offline place names; duplicate detection and merging)
 - `docs/plugin-guide.md`: how to write, test, pack and install a plugin
 - `docs/DECISIONS.md`: implementation decisions not covered by the spec
+- `docs/manual-tests/m4.md`: manual checks against real accounts and exports
