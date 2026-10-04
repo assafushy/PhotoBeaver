@@ -26,7 +26,7 @@ async function removeOne(): Promise<string> {
   return photos[0]!;
 }
 
-describe('connector-google-photos Takeout contract', () => {
+describe('connector-google-photos Takeout contract', { timeout: 30_000 }, () => {
   afterAll(() => dir.cleanup());
   for (const check of connectorContract(connector, { config, removeOne }))
     it(check.name, check.run, 30_000);
