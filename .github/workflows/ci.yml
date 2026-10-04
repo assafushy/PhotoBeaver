@@ -32,7 +32,8 @@ jobs:
 
       - run: pnpm typecheck
 
-      - run: pnpm test
+      - name: Test (two packages at a time, so CPU-heavy suites keep their timeouts)
+        run: pnpm exec turbo run test --concurrency=2
 
       - run: pnpm build
 
