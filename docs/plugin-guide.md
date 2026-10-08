@@ -56,6 +56,12 @@ Each plugin runs in its own process. It talks to Photo Beaver only through `ctx`
 
 This protects the app from crashes and accidental overreach. It is not a security sandbox against malicious native code, which is why files installed from outside the store show a warning and `nativeModules: true` is shown prominently.
 
+## Lifecycle
+
+- `activate(ctx)` runs when the host starts, which happens lazily on the first call core makes.
+- `deactivate()` runs when the plugin is disabled, uninstalled, reloaded or stopped after being idle.
+- When the app quits, hosts are stopped at once and `deactivate()` is **not** called. Keep state in `ctx.storage` or `ctx.dataDir` as you go, not only on deactivate. Interrupted jobs run again on the next start.
+
 ## Native dependencies
 
 Packages with compiled `.node` binaries (for example `onnxruntime-node`) cannot be bundled into `dist/index.js`. Install them as normal dependencies and list them in `package.json`:

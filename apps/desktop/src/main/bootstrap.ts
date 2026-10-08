@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { openLibrary, type OpenLibrary } from '@photobeaver/db';
+import { openLibrary, type LibraryDb, type OpenLibrary } from '@photobeaver/db';
 import type { AppInfo } from '@photobeaver/shared';
 import { app, powerMonitor } from 'electron';
 import { devSocketPath } from '@photobeaver/shared/dev-socket';
@@ -12,6 +12,7 @@ import { registerHandlers } from './ipc/handlers';
 import { IpcRegistry } from './ipc/registry';
 import { createCoreLogger, createPluginLogger, type CoreLogger } from './logger';
 import { devSyncBatchDelayMs, resolveAppPaths, type AppPaths } from './paths';
+import { visibleAssetIds } from './core/access/scope';
 import { handleMediaProtocol } from './protocol/pb-media';
 import { handleTileProtocol } from './protocol/pb-tiles';
 import { installAppMenu } from './app-menu';
@@ -95,6 +96,7 @@ interface Services {
   core: Core;
   developerMode: DeveloperMode;
   stopIdleLock?: () => void;
+  events: EventSink;
 }
 
 function createDeveloperMode(library: OpenLibrary, core: Core, logger: CoreLogger): DeveloperMode {
@@ -126,6 +128,15 @@ function userHandlerDeps({ library, session }: Services) {
   return { db: library.db, users, session, biometricAvailable: touchIdAvailable };
 }
 
+function editHandlerDeps({ library, core, session, events }: Services) {
+  return {
+    db: library.db,
+    events,
+    replan: (ids: readonly string[]) => core.enrichment.scheduler.contentChanged([...ids]),
+    refreshSession: () => session.refresh(),
+  };
+}
+
 function registerIpc(services: Services): void {
   const { paths, logger, library, session, core } = services;
   const registry = new IpcRegistry(electronTransport(), session, logger);
@@ -141,6 +152,7 @@ function registerIpc(services: Services): void {
     session,
     users: userHandlerDeps(services),
     capabilities: () => pluginCapabilities(core),
+    edits: editHandlerDeps(services),
   });
 }
 
@@ -170,6 +182,18 @@ async function shutdownServices({
   logger.flush();
 }
 
+function visibleTo(session: SessionService | null, db: LibraryDb, ids: string[]): string[] {
+  if (!session?.current()) return [];
+  return visibleAssetIds(db, session.scope(), ids);
+}
+
+function startSession(library: OpenLibrary): { events: EventSink; session: SessionService } {
+  let session: SessionService | null = null;
+  const events = createWindowEventSink((ids) => visibleTo(session, library.db, ids));
+  session = new SessionService({ db: library.db, events, promptBiometric: promptTouchId });
+  return { events, session };
+}
+
 /**
  * Starts the app services: logger, library, session, core, IPC and media protocol.
  *
@@ -179,12 +203,11 @@ export async function startApp(): Promise<App> {
   const paths = resolveAppPaths();
   const logger = createCoreLogger(paths.logsDir);
   const library = await openAppLibrary(paths, logger);
-  const events = createWindowEventSink();
-  const session = new SessionService({ db: library.db, events, promptBiometric: promptTouchId });
+  const { events, session } = startSession(library);
   logger.info({ adminId: session.bootstrap(), state: session.state().state }, 'Session started');
   const core = createCore(library, paths, logger, events);
   const developerMode = createDeveloperMode(library, core, logger);
-  const services: Services = { paths, logger, library, session, core, developerMode };
+  const services: Services = { paths, logger, library, session, core, developerMode, events };
   registerIpc(services);
   registerMedia(services);
   core.start();

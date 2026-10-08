@@ -1,6 +1,7 @@
 import { schema, type LibraryDb } from '@photobeaver/db';
 import type { IpcParsedInput, LibraryFilter, LibraryPage } from '@photobeaver/shared';
 import { and, count, desc, eq, lt, or, type SQL } from 'drizzle-orm';
+import type { AccessScope } from '../core/access/scope';
 import { filterCondition } from './library-filter';
 
 type LibraryQuery = Omit<IpcParsedInput<'library.query'>, 'filter'> & { filter?: LibraryFilter };
@@ -16,8 +17,8 @@ function afterCursor(cursor: Cursor): SQL | undefined {
   );
 }
 
-function fetchRows(db: LibraryDb, query: LibraryQuery) {
-  const visible = filterCondition(query.filter ?? {});
+function fetchRows(db: LibraryDb, query: LibraryQuery, scope: AccessScope | null) {
+  const visible = filterCondition(query.filter ?? {}, scope);
   const where = query.cursor ? and(visible, afterCursor(query.cursor)) : visible;
   return db
     .select({
@@ -36,12 +37,12 @@ function fetchRows(db: LibraryDb, query: LibraryQuery) {
     .all();
 }
 
-function countVisible(db: LibraryDb, query: LibraryQuery): number {
+function countVisible(db: LibraryDb, query: LibraryQuery, scope: AccessScope | null): number {
   return (
     db
       .select({ n: count() })
       .from(assets)
-      .where(filterCondition(query.filter ?? {}))
+      .where(filterCondition(query.filter ?? {}, scope))
       .get()?.n ?? 0
   );
 }
@@ -51,16 +52,21 @@ function countVisible(db: LibraryDb, query: LibraryQuery): number {
  *
  * @param db - The library database.
  * @param query - Cursor and page size.
+ * @param scope - The signed-in user's scope, or null for the whole library.
  * @returns The page items, the cursor for the next page, and the total count.
  */
-export function queryLibraryPage(db: LibraryDb, query: LibraryQuery): LibraryPage {
-  const rows = fetchRows(db, query);
+export function queryLibraryPage(
+  db: LibraryDb,
+  query: LibraryQuery,
+  scope: AccessScope | null,
+): LibraryPage {
+  const rows = fetchRows(db, query, scope);
   const hasMore = rows.length > query.limit;
   const pageRows = rows.slice(0, query.limit);
   const last = pageRows.at(-1);
   return {
     items: pageRows.map(({ sortTime: _sortTime, ...item }) => item),
     nextCursor: hasMore && last ? { capturedAt: last.sortTime, id: last.id } : null,
-    total: countVisible(db, query),
+    total: countVisible(db, query, scope),
   };
 }

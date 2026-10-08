@@ -4,11 +4,12 @@ import { buttonStyles } from '../components/Modal';
 import { formatFull } from '../library/dates';
 import { thumbUrl } from '../library/thumb-store';
 import { usePlugins } from '../plugins/use-plugins';
+import { useCan } from '../session/use-session';
 import { useDuplicateActions } from './use-duplicates';
 
 function useMergedByLabel(mergedBy: string): string {
   const { t } = useTranslation();
-  const { data } = usePlugins();
+  const { data } = usePlugins(useCan('plugins.manage'));
   if (mergedBy === 'user') return t('duplicates.mergedByYou');
   const name = data?.find((plugin) => plugin.id === mergedBy)?.name ?? mergedBy;
   return t('duplicates.mergedByPlugin', { name });
@@ -42,6 +43,7 @@ function UndoButton({ mergeId }: { mergeId: string }) {
 }
 
 function MergeItem({ merge }: { merge: MergeRecord }) {
+  const canMerge = useCan('duplicates.merge');
   return (
     <li
       className="flex items-center gap-3 rounded-md border border-neutral-200 p-2 dark:border-neutral-800"
@@ -53,7 +55,7 @@ function MergeItem({ merge }: { merge: MergeRecord }) {
         className="h-12 w-12 rounded object-cover"
       />
       <MergeText merge={merge} />
-      <UndoButton mergeId={merge.id} />
+      {canMerge && <UndoButton mergeId={merge.id} />}
     </li>
   );
 }

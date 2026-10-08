@@ -4,6 +4,7 @@ import { schema, type LibraryDb } from '@photobeaver/db';
 import { validateConfig, type ConnectorInfo, type SourceSummary } from '@photobeaver/shared';
 import { count, eq, isNull } from 'drizzle-orm';
 import { ulid } from 'ulid';
+import { sourceVisible, type AccessScope } from '../access/scope';
 import { writeAudit } from '../audit';
 import { deleteOrphanAssets } from '../assets/purge';
 import { systemClock, type Clock } from '../clock';
@@ -138,17 +139,19 @@ export class SourceService {
   }
 
   /**
-   * All sources with live item counts.
+   * Sources the user can see, with live item counts.
    *
+   * @param scope - The signed-in user's scope, or null for every source.
    * @returns Source summaries ordered by creation.
    */
-  list(): SourceSummary[] {
+  list(scope: AccessScope | null): SourceSummary[] {
     const counts = this.itemCounts();
     return this.deps.db
       .select()
       .from(sources)
       .orderBy(sources.createdAt)
       .all()
+      .filter((row) => sourceVisible(scope, row.id))
       .map((row) => this.summarize(row, counts.get(row.id) ?? 0));
   }
 
@@ -374,7 +377,7 @@ export class SourceService {
   }
 
   private summary(sourceId: string): SourceSummary {
-    return this.list().find((s) => s.id === sourceId)!;
+    return this.list(null).find((s) => s.id === sourceId)!;
   }
 
   private itemCounts(): Map<string, number> {

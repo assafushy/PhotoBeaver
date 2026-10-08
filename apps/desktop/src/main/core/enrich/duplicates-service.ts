@@ -1,6 +1,7 @@
 import { schema, type LibraryDb } from '@photobeaver/db';
 import type { DuplicateGroup, MergeRecord } from '@photobeaver/shared';
-import { and, desc, eq, isNull, max } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, max } from 'drizzle-orm';
+import { scopeCondition, sourceVisible, visibleAssetIds, type AccessScope } from '../access/scope';
 import { writeAudit } from '../audit';
 import type { EventSink } from '../events/event-sink';
 import type { MergeService } from './merge-service';
@@ -34,17 +35,18 @@ function largestSizeOf(db: LibraryDb, assetId: string): number | null {
   return row?.size ?? null;
 }
 
-function sourceNamesOf(db: LibraryDb, assetId: string): string[] {
-  return db
-    .selectDistinct({ name: sources.displayName })
+function sourceNamesOf(db: LibraryDb, assetId: string, scope: AccessScope | null): string[] {
+  const rows = db
+    .selectDistinct({ id: sources.id, name: sources.displayName })
     .from(instances)
     .innerJoin(sources, eq(sources.id, instances.sourceId))
     .where(liveInstancesOf(assetId))
-    .all()
-    .map((n) => n.name);
+    .all();
+  const visible = rows.filter((r) => sourceVisible(scope, r.id));
+  return (visible.length ? visible : rows).map((r) => r.name);
 }
 
-function groupAsset(db: LibraryDb, assetId: string): GroupAsset | null {
+function groupAsset(db: LibraryDb, assetId: string, scope: AccessScope | null): GroupAsset | null {
   const row = db.select().from(assets).where(eq(assets.id, assetId)).get();
   if (!row || row.missingSince !== null) return null;
   return {
@@ -54,9 +56,17 @@ function groupAsset(db: LibraryDb, assetId: string): GroupAsset | null {
     height: row.height,
     capturedAt: row.capturedAt,
     sizeBytes: largestSizeOf(db, assetId),
-    sources: sourceNamesOf(db, assetId),
+    sources: sourceNamesOf(db, assetId, scope),
     place: placeOf(db, assetId),
   };
+}
+
+function allExistingVisible(db: LibraryDb, scope: AccessScope | null, ids: string[]): boolean {
+  if (!scope) return true;
+  const visible = new Set(visibleAssetIds(db, scope, ids));
+  const others = ids.filter((id) => !visible.has(id));
+  if (others.length === 0) return true;
+  return !db.select({ id: assets.id }).from(assets).where(inArray(assets.id, others)).get();
 }
 
 /**
@@ -71,15 +81,24 @@ export class DuplicatesService {
     private readonly now: () => number,
   ) {}
 
-  /** Open suggestions whose assets still exist; stale ones are closed. */
-  list(): DuplicateGroup[] {
+  /**
+   * Open suggestions whose assets still exist; stale ones are closed. A scoped
+   * user sees a group only when every asset in it is visible to them.
+   *
+   * @param scope - The signed-in user's scope, or null for the whole library.
+   * @returns The groups, newest first.
+   */
+  list(scope: AccessScope | null): DuplicateGroup[] {
     const open = this.db
       .select()
       .from(duplicateSuggestions)
       .where(eq(duplicateSuggestions.status, 'open'))
       .orderBy(desc(duplicateSuggestions.createdAt))
       .all();
-    return open.flatMap((row) => this.toGroup(row));
+    const groups = open.flatMap((row) => this.toGroup(row, scope));
+    const ids = groups.flatMap((g) => g.assets.map((a) => a.id));
+    const visible = new Set(visibleAssetIds(this.db, scope, ids));
+    return groups.filter((g) => g.assets.every((a) => visible.has(a.id)));
   }
 
   /**
@@ -88,9 +107,10 @@ export class DuplicatesService {
    * @param id - Suggestion id.
    * @param keepAssetId - Asset to keep.
    * @param userId - Acting user.
+   * @param scope - The acting user's scope; every asset must be visible.
    */
-  merge(id: string, keepAssetId: string, userId: string): void {
-    const ids = this.assetIds(id);
+  merge(id: string, keepAssetId: string, userId: string, scope: AccessScope | null): void {
+    const ids = this.assetIds(id, scope);
     if (!ids.includes(keepAssetId)) throw new Error('Pick one of the suggested photos to keep');
     this.merges.mergeByUser(ids, keepAssetId);
     this.close(id, 'merged');
@@ -107,7 +127,15 @@ export class DuplicatesService {
     );
   }
 
-  dismiss(id: string, userId: string): void {
+  /**
+   * Dismisses a suggestion.
+   *
+   * @param id - Suggestion id.
+   * @param userId - Acting user.
+   * @param scope - The acting user's scope; every asset must be visible.
+   */
+  dismiss(id: string, userId: string, scope: AccessScope | null): void {
+    this.assetIds(id, scope);
     this.close(id, 'dismissed');
     writeAudit(
       this.db,
@@ -116,8 +144,13 @@ export class DuplicatesService {
     );
   }
 
-  /** The latest merges that can still be undone. */
-  recentMerges(): MergeRecord[] {
+  /**
+   * The latest merges that can still be undone, whose surviving asset the user can see.
+   *
+   * @param scope - The signed-in user's scope, or null for the whole library.
+   * @returns Merges, newest first.
+   */
+  recentMerges(scope: AccessScope | null): MergeRecord[] {
     return this.db
       .select({
         id: assetMerges.id,
@@ -127,7 +160,7 @@ export class DuplicatesService {
       })
       .from(assetMerges)
       .innerJoin(assets, eq(assets.id, assetMerges.survivingAssetId))
-      .where(isNull(assetMerges.undoneAt))
+      .where(and(isNull(assetMerges.undoneAt), scopeCondition(scope)))
       .orderBy(desc(assetMerges.createdAt))
       .limit(RECENT_MERGES)
       .all();
@@ -138,8 +171,10 @@ export class DuplicatesService {
    *
    * @param mergeId - asset_merges id.
    * @param userId - Acting user.
+   * @param scope - The acting user's scope; the surviving asset must be visible.
    */
-  undo(mergeId: string, userId: string): void {
+  undo(mergeId: string, userId: string, scope: AccessScope | null): void {
+    this.assertMergeVisible(mergeId, scope);
     this.merges.undo(mergeId);
     writeAudit(
       this.db,
@@ -148,23 +183,36 @@ export class DuplicatesService {
     );
   }
 
-  private toGroup(row: SuggestionRow): DuplicateGroup[] {
+  private assertMergeVisible(mergeId: string, scope: AccessScope | null): void {
+    if (!scope) return;
+    const row = this.db
+      .select({ id: assetMerges.id })
+      .from(assetMerges)
+      .innerJoin(assets, eq(assets.id, assetMerges.survivingAssetId))
+      .where(and(eq(assetMerges.id, mergeId), scopeCondition(scope)))
+      .get();
+    if (!row) throw new Error('Merge not found');
+  }
+
+  private toGroup(row: SuggestionRow, scope: AccessScope | null): DuplicateGroup[] {
     const members = (JSON.parse(row.assetIdsJson) as string[])
-      .map((id) => groupAsset(this.db, id))
+      .map((id) => groupAsset(this.db, id, scope))
       .filter((a): a is GroupAsset => a !== null);
     if (members.length < 2) return (this.close(row.id, 'merged'), []);
     const { id, kind, confidence, createdAt } = row;
     return [{ id, kind, confidence, createdAt, assets: members }];
   }
 
-  private assetIds(id: string): string[] {
+  private assetIds(id: string, scope: AccessScope | null): string[] {
     const row = this.db
       .select()
       .from(duplicateSuggestions)
       .where(and(eq(duplicateSuggestions.id, id), eq(duplicateSuggestions.status, 'open')))
       .get();
-    if (!row) throw new Error('This suggestion is no longer open');
-    return JSON.parse(row.assetIdsJson) as string[];
+    const ids = row ? (JSON.parse(row.assetIdsJson) as string[]) : [];
+    if (!row || !allExistingVisible(this.db, scope, ids))
+      throw new Error('This suggestion is no longer open');
+    return ids;
   }
 
   private close(id: string, status: 'merged' | 'dismissed'): void {

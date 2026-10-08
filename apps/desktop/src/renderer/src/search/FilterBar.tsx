@@ -2,6 +2,7 @@ import type { LibraryFacets } from '@photobeaver/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useAlbums } from '../albums/use-albums';
 import { usePbEvent } from '../lib/use-pb-event';
 import { isFiltered, useFilterStore } from './filter-store';
 
@@ -145,6 +146,22 @@ function ListSelect({ field, kind, facets }: ListSelectProps) {
   );
 }
 
+function AlbumFilter() {
+  const { t } = useTranslation();
+  const { data } = useAlbums();
+  const { filter, setList } = useFilterStore();
+  const facets = (data ?? []).map(({ id, name, count }) => ({ id, name, count }));
+  return (
+    <FacetSelect
+      label={t('albums.any')}
+      facets={facets}
+      selected={filter.albumIds}
+      onSelect={(ids) => setList('albumIds', ids)}
+      testId="filter-album"
+    />
+  );
+}
+
 function FacetSelects() {
   const { data } = useFacets();
   if (!data) return null;
@@ -154,6 +171,7 @@ function FacetSelects() {
       <TagSelect kind="tag" facets={data.tags} />
       <ListSelect field="personIds" kind="person" facets={data.people} />
       <ListSelect field="sourceIds" kind="source" facets={data.sources} />
+      <AlbumFilter />
     </>
   );
 }

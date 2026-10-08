@@ -5,6 +5,7 @@ import { buttonStyles } from '../components/Modal';
 import { formatFull } from '../library/dates';
 import { thumbUrl } from '../library/thumb-store';
 import { formatBytes } from '../lib/format-bytes';
+import { useCan } from '../session/use-session';
 import { useDuplicateActions } from './use-duplicates';
 
 type DuplicateAsset = DuplicateGroup['assets'][number];
@@ -27,6 +28,21 @@ function AssetFacts({ asset }: { asset: DuplicateAsset }) {
   );
 }
 
+function KeepRadio(props: { groupId: string; checked: boolean; onKeep(): void }) {
+  const { t } = useTranslation();
+  return (
+    <span className="mt-2 flex items-center gap-1 text-xs font-medium">
+      <input
+        type="radio"
+        name={`keep-${props.groupId}`}
+        checked={props.checked}
+        onChange={props.onKeep}
+      />
+      {t('duplicates.keep')}
+    </span>
+  );
+}
+
 function AssetChoice({
   asset,
   groupId,
@@ -38,7 +54,7 @@ function AssetChoice({
   keep: string;
   onKeep(id: string): void;
 }) {
-  const { t } = useTranslation();
+  const canMerge = useCan('duplicates.merge');
   return (
     <label className="w-48 cursor-pointer rounded-md border border-neutral-200 p-2 has-checked:border-amber-500 dark:border-neutral-800">
       <img
@@ -47,15 +63,9 @@ function AssetChoice({
         className="h-40 w-full rounded bg-neutral-200 object-contain dark:bg-neutral-800"
       />
       <AssetFacts asset={asset} />
-      <span className="mt-2 flex items-center gap-1 text-xs font-medium">
-        <input
-          type="radio"
-          name={`keep-${groupId}`}
-          checked={keep === asset.id}
-          onChange={() => onKeep(asset.id)}
-        />
-        {t('duplicates.keep')}
-      </span>
+      {canMerge && (
+        <KeepRadio groupId={groupId} checked={keep === asset.id} onKeep={() => onKeep(asset.id)} />
+      )}
     </label>
   );
 }
@@ -115,6 +125,7 @@ function GroupActions({ group, keep }: { group: DuplicateGroup; keep: string }) 
  */
 export function DuplicateGroupCard({ group }: { group: DuplicateGroup }) {
   const [keep, setKeep] = useState(group.assets[0]!.id);
+  const canMerge = useCan('duplicates.merge');
   return (
     <li
       className="space-y-3 rounded-lg border border-neutral-200 p-4 dark:border-neutral-800"
@@ -126,7 +137,7 @@ export function DuplicateGroupCard({ group }: { group: DuplicateGroup }) {
           <AssetChoice key={asset.id} {...{ asset, keep }} groupId={group.id} onKeep={setKeep} />
         ))}
       </div>
-      <GroupActions group={group} keep={keep} />
+      {canMerge && <GroupActions group={group} keep={keep} />}
     </li>
   );
 }

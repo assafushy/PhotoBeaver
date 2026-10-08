@@ -21,14 +21,15 @@ describe('core headless integration with connector-local', () => {
   let files: string[];
   const events: string[] = [];
 
-  const visible = () => queryLibraryPage(temp.library.db, { cursor: null, limit: 1000 }).total;
+  const visible = () =>
+    queryLibraryPage(temp.library.db, { cursor: null, limit: 1000 }, null).total;
   const pendingThumbs = () =>
     temp.library.db
       .select()
       .from(schema.assets)
       .all()
       .filter((a) => a.thumbState === 'pending').length;
-  const source = () => core.sources.list()[0]!;
+  const source = () => core.sources.list(null)[0]!;
 
   beforeAll(async () => {
     root = mkdtempSync(path.join(tmpdir(), 'pb-int-'));

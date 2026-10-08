@@ -95,15 +95,15 @@ describe('faces and people', () => {
     expect(b.size).toBe(1);
     expect([...a][0]).not.toBe([...b][0]);
     expect(personOf(ids.noise![0]!)).toBeNull();
-    expect(people.list().map((p) => p.faceCount)).toEqual([4, 4]);
+    expect(people.list(null).map((p) => p.faceCount)).toEqual([4, 4]);
   });
 
   it('respects user moves and rejections when clustering again', async () => {
     const ids = seedGroups();
     await people.runClustering();
     const personA = personOf(ids.a![0]!)!;
-    const split = people.moveFaces([ids.a![0]!], { newPerson: true });
-    people.rejectFace(ids.a![1]!);
+    const split = people.moveFaces([ids.a![0]!], { newPerson: true }, null);
+    people.rejectFace(ids.a![1]!, null);
     await people.runClustering();
     expect(personOf(ids.a![0]!)).toBe(split);
     expect(personOf(ids.a![1]!)).not.toBe(personA);
@@ -113,19 +113,19 @@ describe('faces and people', () => {
     const ids = seedGroups();
     await people.runClustering();
     const [pa, pb] = [personOf(ids.a![0]!)!, personOf(ids.b![0]!)!];
-    people.rename(pa, 'Ada Lovelace');
+    people.rename(pa, 'Ada Lovelace', null);
     const hits = temp.library.sqlite
       .prepare("SELECT asset_id FROM assets_fts WHERE assets_fts MATCH 'lovelace'")
       .all();
     expect(hits).toHaveLength(4);
-    people.merge(pb, pa);
-    expect(people.list()).toEqual([
+    people.merge(pb, pa, null);
+    expect(people.list(null)).toEqual([
       expect.objectContaining({ id: pa, name: 'Ada Lovelace', faceCount: 8 }),
     ]);
     const shown = db()
       .select({ n: sql<number>`count(*)` })
       .from(schema.assets)
-      .where(filterCondition({ personIds: [pa] }))
+      .where(filterCondition({ personIds: [pa] }, null))
       .get()!.n;
     expect(shown).toBe(8);
   });
@@ -135,7 +135,7 @@ describe('faces and people', () => {
     await people.runClustering();
     store.remove(db(), ids.b!);
     expect(people.cleanup()).toBe(1);
-    expect(people.list()).toHaveLength(1);
+    expect(people.list(null)).toHaveLength(1);
   });
 
   it('does not double faces when merging copies of one photo, and undo restores them', async () => {

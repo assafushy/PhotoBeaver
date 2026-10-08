@@ -1,6 +1,7 @@
 import { schema } from '@photobeaver/db';
 import type { LibraryFilter } from '@photobeaver/shared';
 import { and, eq, gte, inArray, isNull, lte, sql, type SQL } from 'drizzle-orm';
+import { scopeCondition, type AccessScope } from '../core/access/scope';
 
 const { assets } = schema;
 
@@ -22,12 +23,18 @@ export function ftsQuery(text: string): string | null {
   return words.length ? words.map((w) => `"${w}"*`).join(' AND ') : null;
 }
 
-function liveInstanceIn(sourceIds: readonly string[]): SQL {
-  const list = sql.join(
-    sourceIds.map((id) => sql`${id}`),
+const idList = (ids: readonly string[]): SQL =>
+  sql.join(
+    ids.map((id) => sql`${id}`),
     sql`, `,
   );
-  return sql`EXISTS (SELECT 1 FROM instances i WHERE i.asset_id = ${assets.id} AND i.deleted_at IS NULL AND i.source_id IN (${list}))`;
+
+function liveInstanceIn(sourceIds: readonly string[]): SQL {
+  return sql`EXISTS (SELECT 1 FROM instances i WHERE i.asset_id = ${assets.id} AND i.deleted_at IS NULL AND i.source_id IN (${idList(sourceIds)}))`;
+}
+
+function inAnyAlbum(albumIds: readonly string[]): SQL {
+  return sql`EXISTS (SELECT 1 FROM album_assets aa WHERE aa.asset_id = ${assets.id} AND aa.album_id IN (${idList(albumIds)}))`;
 }
 
 function hasTag(tagId: string): SQL {
@@ -50,18 +57,22 @@ const multiSource = sql`(SELECT COUNT(DISTINCT i.source_id) FROM instances i WHE
 
 /**
  * SQL conditions for the library filters (SPEC 8.1 #3). The unfiltered case is
- * just the visibility test, so it keeps using the library order index.
+ * just the visibility test, so it keeps using the library order index. The
+ * user's scope (SPEC 3.3) is always applied on top.
  *
  * @param filter - User filters.
+ * @param scope - The signed-in user's scope, or null for the whole library.
  * @returns The WHERE condition.
  */
-export function filterCondition(filter: LibraryFilter): SQL {
+export function filterCondition(filter: LibraryFilter, scope: AccessScope | null): SQL {
   const parts: (SQL | undefined)[] = [
     visible,
+    scopeCondition(scope),
     textMatch(filter.text),
     filter.from === undefined ? undefined : gte(assets.capturedAt, filter.from),
     filter.to === undefined ? undefined : lte(assets.capturedAt, filter.to),
     filter.sourceIds?.length ? liveInstanceIn(filter.sourceIds) : undefined,
+    filter.albumIds?.length ? inAnyAlbum(filter.albumIds) : undefined,
     filter.mediaTypes?.length ? inArray(assets.mediaType, filter.mediaTypes) : undefined,
     ...(filter.tagIds ?? []).map(hasTag),
     ...(filter.personIds ?? []).map(showsPerson),

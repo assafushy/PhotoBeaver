@@ -11,13 +11,16 @@ function broadcast<K extends PbEventName>(name: K, payload: PbEvents[K]): void {
   }
 }
 
-function createThumbBatcher(): (items: ThumbUpdate[]) => void {
+export type VisibleIds = (assetIds: string[]) => string[];
+
+function createThumbBatcher(visibleIds: VisibleIds): (items: ThumbUpdate[]) => void {
   let thumbTimer: NodeJS.Timeout | null = null;
   const ready = new Map<string, ThumbUpdate>();
   const flushThumbs = () => {
     thumbTimer = null;
-    broadcast('thumbs.ready', { items: [...ready.values()] });
+    const items = visibleIds([...ready.keys()]).map((id) => ready.get(id)!);
     ready.clear();
+    if (items.length > 0) broadcast('thumbs.ready', { items });
   };
   return (items) => {
     items.forEach((item) => ready.set(item.id, item));
@@ -37,12 +40,14 @@ function createLibraryThrottle(): () => void {
 
 /**
  * Forwards core events to every renderer. `library.changed` is throttled and
- * `thumbs.ready` updates are batched so a fast sync does not flood the UI.
+ * `thumbs.ready` updates are batched so a fast sync does not flood the UI, and
+ * carry only the asset ids the signed-in user can see.
  *
+ * @param visibleIds - Keeps the asset ids visible to the signed-in user.
  * @returns The event sink to give the core.
  */
-export function createWindowEventSink(): EventSink {
-  const addThumbs = createThumbBatcher();
+export function createWindowEventSink(visibleIds: VisibleIds): EventSink {
+  const addThumbs = createThumbBatcher(visibleIds);
   const libraryChanged = createLibraryThrottle();
   return {
     emit(name, payload) {

@@ -33,7 +33,7 @@ describe('queryLibraryPage', () => {
   });
 
   it('returns an empty page for an empty library', () => {
-    const page = queryLibraryPage(temp.library.db, { cursor: null, limit: 50 });
+    const page = queryLibraryPage(temp.library.db, { cursor: null, limit: 50 }, null);
     expect(page).toEqual({ items: [], nextCursor: null, total: 0 });
   });
 
@@ -48,12 +48,12 @@ describe('queryLibraryPage', () => {
       .insert(schema.assets)
       .values({ id: 'm', mediaType: 'image', capturedAt: 500, missingSince: 1 })
       .run();
-    const first = queryLibraryPage(temp.library.db, { cursor: null, limit: 2 });
+    const first = queryLibraryPage(temp.library.db, { cursor: null, limit: 2 }, null);
     expect(first.items.map((i) => i.id)).toEqual(['c', 'b']);
     expect(first.total).toBe(5);
-    const second = queryLibraryPage(temp.library.db, { cursor: first.nextCursor, limit: 2 });
+    const second = queryLibraryPage(temp.library.db, { cursor: first.nextCursor, limit: 2 }, null);
     expect(second.items.map((i) => i.id)).toEqual(['a', 'e']);
-    const third = queryLibraryPage(temp.library.db, { cursor: second.nextCursor, limit: 2 });
+    const third = queryLibraryPage(temp.library.db, { cursor: second.nextCursor, limit: 2 }, null);
     expect(third.items.map((i) => i.id)).toEqual(['d']);
     expect(third.nextCursor).toBeNull();
   });

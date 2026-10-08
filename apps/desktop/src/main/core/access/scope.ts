@@ -1,5 +1,5 @@
 import { schema, type LibraryDb } from '@photobeaver/db';
-import { and, eq, sql, type SQL } from 'drizzle-orm';
+import { and, eq, inArray, sql, type SQL } from 'drizzle-orm';
 
 const { assets, userScopes } = schema;
 
@@ -60,6 +60,33 @@ export function assetVisible(db: LibraryDb, scope: AccessScope | null, assetId: 
     .where(and(eq(assets.id, assetId), scopeCondition(scope)))
     .get();
   return row !== undefined;
+}
+
+const ID_CHUNK = 500;
+
+/**
+ * Keeps the asset ids the user may see.
+ *
+ * @param db - Database.
+ * @param scope - The user's scope, or null for everything.
+ * @param ids - Asset ids.
+ * @returns The visible ids, in input order.
+ */
+export function visibleAssetIds(
+  db: LibraryDb,
+  scope: AccessScope | null,
+  ids: readonly string[],
+): string[] {
+  if (!scope || ids.length === 0) return [...ids];
+  const visible = new Set<string>();
+  for (let i = 0; i < ids.length; i += ID_CHUNK) {
+    db.select({ id: assets.id })
+      .from(assets)
+      .where(and(inArray(assets.id, ids.slice(i, i + ID_CHUNK)), scopeCondition(scope)))
+      .all()
+      .forEach((row) => visible.add(row.id));
+  }
+  return ids.filter((id) => visible.has(id));
 }
 
 /**

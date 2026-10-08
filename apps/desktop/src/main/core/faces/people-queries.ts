@@ -1,5 +1,17 @@
 import { schema, type LibraryDb } from '@photobeaver/db';
-import { and, asc, count, countDistinct, eq, gt, inArray, isNotNull, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  count,
+  countDistinct,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
+import { scopeCondition, type AccessScope } from '../access/scope';
 
 const { faces, people } = schema;
 
@@ -26,60 +38,80 @@ function compareSummaries(a: PersonSummary, b: PersonSummary): number {
   return b.faceCount - a.faceCount;
 }
 
-function selectPeopleRows(db: LibraryDb) {
+/**
+ * SQL that keeps only faces on assets the user may see.
+ *
+ * @param scope - The user's scope, or null for everything.
+ * @returns The condition, or undefined when the user is not scoped.
+ */
+export const visibleFace = (scope: AccessScope | null): SQL | undefined =>
+  scopeCondition(scope, sql`${faces.assetId}`);
+
+function selectPeopleRows(db: LibraryDb, scope: AccessScope | null) {
   return db
     .select({
       id: people.id,
       name: people.name,
       cover: people.coverFaceId,
+      coverListed: sql<number>`max(${faces.id} = ${people.coverFaceId})`,
       faceCount: count(faces.id),
       assetCount: countDistinct(faces.assetId),
       firstFace: sql<string>`min(${faces.id})`,
     })
     .from(people)
     .innerJoin(faces, eq(faces.personId, people.id))
+    .where(visibleFace(scope))
     .groupBy(people.id)
     .all();
 }
 
 /**
  * People with their face and photo counts: named people by name, then unnamed
- * clusters, largest first. People with no faces are left out.
+ * clusters, largest first. Only faces on assets the user can see are counted,
+ * people with none are left out, and a cover the user cannot see falls back to
+ * their first visible face.
  *
  * @param db - Database.
+ * @param scope - The signed-in user's scope, or null for the whole library.
  * @returns The people.
  */
-export function listPeople(db: LibraryDb): PersonSummary[] {
-  return selectPeopleRows(db)
+export function listPeople(db: LibraryDb, scope: AccessScope | null): PersonSummary[] {
+  return selectPeopleRows(db, scope)
     .map((r) => ({
       id: r.id,
       name: r.name,
       faceCount: r.faceCount,
       assetCount: r.assetCount,
-      coverFaceId: r.cover ?? r.firstFace,
+      coverFaceId: r.cover && (r.coverListed === 1 || !scope) ? r.cover : r.firstFace,
     }))
     .sort(compareSummaries);
 }
 
 /**
- * One page of a person's faces.
+ * One page of a person's faces, only those on assets the user can see.
  *
  * @param db - Database.
  * @param personId - Person id.
  * @param after - Face id to continue after, or null for the first page.
+ * @param scope - The signed-in user's scope, or null for the whole library.
  * @returns Faces in id order and the cursor for the next page.
  */
-export function personFaces(db: LibraryDb, personId: string, after: string | null) {
+export function personFaces(
+  db: LibraryDb,
+  personId: string,
+  after: string | null,
+  scope: AccessScope | null,
+) {
+  const where = and(
+    eq(faces.personId, personId),
+    isNotNull(faces.assetId),
+    after ? gt(faces.id, after) : undefined,
+    visibleFace(scope),
+  );
   const rows = db
     .select()
     .from(faces)
-    .where(
-      and(
-        eq(faces.personId, personId),
-        isNotNull(faces.assetId),
-        after ? gt(faces.id, after) : undefined,
-      ),
-    )
+    .where(where)
     .orderBy(asc(faces.id))
     .limit(FACE_PAGE + 1)
     .all();

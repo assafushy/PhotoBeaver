@@ -29,7 +29,7 @@ describe('SyncRunner', () => {
 
   const db = () => temp.library.db;
   const source = () => db().select().from(schema.sources).where(eq(schema.sources.id, 's')).get()!;
-  const liveCount = () => queryLibraryPage(db(), { cursor: null, limit: 1000 }).total;
+  const liveCount = () => queryLibraryPage(db(), { cursor: null, limit: 1000 }, null).total;
   const thumbJobs = () =>
     db().select().from(schema.jobs).where(eq(schema.jobs.kind, 'thumbnail')).all().length;
   const runSync = () =>
