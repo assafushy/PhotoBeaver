@@ -71,6 +71,8 @@ const NO_SECRET_STORAGE: SecretCipher = {
   decrypt: notConfigured('Secret storage'),
 };
 
+const QUIT_GRACE_MS = 1_000;
+
 const NO_BROWSER = async (): Promise<never> => notConfigured('Opening links')();
 
 /**
@@ -101,10 +103,7 @@ export class Core {
   constructor(private readonly options: CoreOptions) {
     this.clock = options.clock ?? systemClock;
     this.queue = new JobQueue(options.library.sqlite, this.clock);
-    this.secrets = new SecretsService(
-      options.library.db,
-      options.secretCipher ?? NO_SECRET_STORAGE,
-    );
+    this.secrets = this.createSecrets();
     this.oauth = new OAuthBroker({ openExternal: this.openExternal, fetch: options.fetch });
     this.faces = new FaceStore(new FaceVectors(options.library.sqlite));
     this.registry = this.createRegistry();
@@ -113,15 +112,8 @@ export class Core {
     this.originals = new OriginalCache(path.join(options.libraryDir, 'cache', 'originals'), source);
     this.enrichment = this.createEnrichment();
     this.people = this.createPeople();
-    this.duplicates = new DuplicatesService(
-      options.library.db,
-      this.enrichment.merges,
-      options.events,
-      this.clock,
-    );
-    this.writer = new BatchWriter(options.library.db, this.queue, (ids) =>
-      this.enrichment.scheduler.contentChanged(ids),
-    );
+    this.duplicates = this.createDuplicates();
+    this.writer = this.createWriter();
     this.thumbnails = this.createThumbnails(source);
     this.syncLane = this.createSyncLane();
     this.lanes = [this.syncLane, this.createCoreLane(), ...this.enrichment.lanes];
@@ -129,6 +121,24 @@ export class Core {
     this.sources = this.createSources();
     this.maintenance = this.createMaintenance();
     this.plugins = options.plugins ? this.createPlugins(options.plugins) : null;
+  }
+
+  private createSecrets(): SecretsService {
+    return new SecretsService(
+      this.options.library.db,
+      this.options.secretCipher ?? NO_SECRET_STORAGE,
+    );
+  }
+
+  private createDuplicates(): DuplicatesService {
+    const { library, events } = this.options;
+    return new DuplicatesService(library.db, this.enrichment.merges, events, this.clock);
+  }
+
+  private createWriter(): BatchWriter {
+    return new BatchWriter(this.options.library.db, this.queue, (ids) =>
+      this.enrichment.scheduler.contentChanged(ids),
+    );
   }
 
   /** Loads plugins, recovers crashed work and starts background processing. */
@@ -144,6 +154,19 @@ export class Core {
     this.people.scheduleClustering();
     void this.startWatches();
     this.options.logger.info({ recovered }, 'Core started');
+  }
+
+  /**
+   * Quit: stops leasing, gives in-flight jobs one second, then kills every plugin
+   * host without waiting for it. Interrupted jobs keep their lease and run again
+   * on the next start (SPEC 7.3).
+   */
+  async quit(): Promise<void> {
+    this.scheduler.stop();
+    this.maintenance.stop();
+    this.watches.stopAll();
+    await Promise.all(this.lanes.map((lane) => lane.stop(QUIT_GRACE_MS)));
+    this.plugins?.killAll();
   }
 
   /** Stops leasing, gives in-flight jobs 5 seconds, then stops plugin hosts (SPEC 7.7). */

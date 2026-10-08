@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { openLibrary, type OpenLibrary } from '@photobeaver/db';
+import { openLibrary, type LibraryDb, type OpenLibrary } from '@photobeaver/db';
 import type { AppInfo } from '@photobeaver/shared';
 import { app, powerMonitor } from 'electron';
 import { devSocketPath } from '@photobeaver/shared/dev-socket';
@@ -12,9 +12,15 @@ import { registerHandlers } from './ipc/handlers';
 import { IpcRegistry } from './ipc/registry';
 import { createCoreLogger, createPluginLogger, type CoreLogger } from './logger';
 import { devSyncBatchDelayMs, resolveAppPaths, type AppPaths } from './paths';
+import { visibleAssetIds } from './core/access/scope';
 import { handleMediaProtocol } from './protocol/pb-media';
 import { handleTileProtocol } from './protocol/pb-tiles';
+import { installAppMenu } from './app-menu';
+import type { EventSink } from './core/events/event-sink';
+import { UserService } from './core/users/user-service';
+import { startIdleLock } from './session/idle-lock';
 import { SessionService } from './session/session-service';
+import { promptTouchId, touchIdAvailable } from './session/touch-id';
 import { utilityProcessLauncher } from './plugins/utility-launcher';
 import { safeStorageCipher } from './secrets/safe-storage-cipher';
 import { openBrowser, openExternalUrl, pickDirectory, pickPluginPackage } from './shell-actions';
@@ -51,13 +57,18 @@ function pluginSystem(paths: AppPaths): PluginSystemOptions {
   };
 }
 
-function createCore(library: OpenLibrary, paths: AppPaths, logger: CoreLogger): Core {
+function createCore(
+  library: OpenLibrary,
+  paths: AppPaths,
+  logger: CoreLogger,
+  events: EventSink,
+): Core {
   return new Core({
     library,
     libraryDir: paths.libraryDir,
     pluginDataRoot: paths.pluginDataDir,
     plugins: pluginSystem(paths),
-    events: createWindowEventSink(),
+    events,
     logger,
     ffmpegPath: ffmpegPath(),
     pickDirectory,
@@ -84,6 +95,8 @@ interface Services {
   session: SessionService;
   core: Core;
   developerMode: DeveloperMode;
+  stopIdleLock?: () => void;
+  events: EventSink;
 }
 
 function createDeveloperMode(library: OpenLibrary, core: Core, logger: CoreLogger): DeveloperMode {
@@ -92,23 +105,54 @@ function createDeveloperMode(library: OpenLibrary, core: Core, logger: CoreLogge
   return new DeveloperMode(library.db, new DevSocketServer(devSocketPath(), handler, logger));
 }
 
-function registerIpc({ paths, logger, library, session, core, developerMode }: Services): void {
-  const registry = new IpcRegistry(electronTransport(), () => session.current(), logger);
+function pluginCapabilities(core: Core): { faces: boolean; merge: boolean } {
+  const enabled = (core.plugins?.list() ?? []).filter((p) => p.enabled);
+  return {
+    faces: enabled.some((p) => p.produces.includes('faces')),
+    merge: enabled.some((p) => p.permissions?.assets === 'merge'),
+  };
+}
+
+function pluginHandlerDeps({ core, developerMode }: Services) {
+  return {
+    plugins: core.plugins!,
+    developerMode,
+    pickPackage: pickPluginPackage,
+    pickDirectory,
+    openExternal: openBrowser,
+  };
+}
+
+function userHandlerDeps({ library, session }: Services) {
+  const users = new UserService(library.db);
+  return { db: library.db, users, session, biometricAvailable: touchIdAvailable };
+}
+
+function editHandlerDeps({ library, core, session, events }: Services) {
+  return {
+    db: library.db,
+    events,
+    replan: (ids: readonly string[]) => core.enrichment.scheduler.contentChanged([...ids]),
+    refreshSession: () => session.refresh(),
+  };
+}
+
+function registerIpc(services: Services): void {
+  const { paths, logger, library, session, core } = services;
+  const registry = new IpcRegistry(electronTransport(), session, logger);
   registerHandlers(registry, {
     db: library.db,
     sources: core.sources,
     appInfo: buildAppInfo(paths),
     pickDirectory,
     openExternalUrl,
-    plugins: {
-      plugins: core.plugins!,
-      developerMode,
-      pickPackage: pickPluginPackage,
-      pickDirectory,
-      openExternal: openBrowser,
-    },
+    plugins: pluginHandlerDeps(services),
     duplicates: core.duplicates,
     people: core.people,
+    session,
+    users: userHandlerDeps(services),
+    capabilities: () => pluginCapabilities(core),
+    edits: editHandlerDeps(services),
   });
 }
 
@@ -118,17 +162,36 @@ function registerMedia({ paths, library, session, core }: Services): void {
     db: library.db,
     core,
     thumbsDir: path.join(paths.libraryDir, 'thumbs'),
-    currentUser: () => session.current(),
+    session,
   });
 }
 
-async function shutdownServices({ logger, developerMode, core, library }: Services): Promise<void> {
+async function shutdownServices({
+  logger,
+  developerMode,
+  core,
+  library,
+  stopIdleLock,
+}: Services): Promise<void> {
   logger.info({}, 'Shutting down');
+  stopIdleLock?.();
   await developerMode.stop();
-  await core.stop();
+  await core.quit();
   library.close();
   logger.info({}, 'Shutdown complete');
   logger.flush();
+}
+
+function visibleTo(session: SessionService | null, db: LibraryDb, ids: string[]): string[] {
+  if (!session?.current()) return [];
+  return visibleAssetIds(db, session.scope(), ids);
+}
+
+function startSession(library: OpenLibrary): { events: EventSink; session: SessionService } {
+  let session: SessionService | null = null;
+  const events = createWindowEventSink((ids) => visibleTo(session, library.db, ids));
+  session = new SessionService({ db: library.db, events, promptBiometric: promptTouchId });
+  return { events, session };
 }
 
 /**
@@ -140,14 +203,16 @@ export async function startApp(): Promise<App> {
   const paths = resolveAppPaths();
   const logger = createCoreLogger(paths.logsDir);
   const library = await openAppLibrary(paths, logger);
-  const session = new SessionService(library.db);
-  logger.info({ userId: session.bootstrap().id }, 'Implicit admin session started');
-  const core = createCore(library, paths, logger);
+  const { events, session } = startSession(library);
+  logger.info({ adminId: session.bootstrap(), state: session.state().state }, 'Session started');
+  const core = createCore(library, paths, logger, events);
   const developerMode = createDeveloperMode(library, core, logger);
-  const services: Services = { paths, logger, library, session, core, developerMode };
+  const services: Services = { paths, logger, library, session, core, developerMode, events };
   registerIpc(services);
   registerMedia(services);
   core.start();
+  installAppMenu(() => session.lock());
+  services.stopIdleLock = startIdleLock(library.db, session);
   await developerMode.start();
   return { library, core, logger, shutdown: () => shutdownServices(services) };
 }

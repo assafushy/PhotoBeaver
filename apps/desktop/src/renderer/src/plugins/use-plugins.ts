@@ -4,17 +4,23 @@ import { usePbEvent } from '../lib/use-pb-event';
 export const PLUGINS_QUERY_KEY = ['plugins'] as const;
 
 /**
- * Installed plugins, refreshed on `plugins.changed`.
+ * Installed plugins, refreshed on `plugins.changed`. Only Admins may list
+ * plugins, so callers outside the Plugins screen pass whether to fetch.
  *
+ * @param enabled - Whether to fetch the list.
  * @returns The plugins query.
  */
-export function usePlugins() {
+export function usePlugins(enabled = true) {
   const client = useQueryClient();
   usePbEvent(
     'plugins.changed',
     () => void client.invalidateQueries({ queryKey: PLUGINS_QUERY_KEY }),
   );
-  return useQuery({ queryKey: PLUGINS_QUERY_KEY, queryFn: () => window.pb.plugins.list() });
+  return useQuery({
+    queryKey: PLUGINS_QUERY_KEY,
+    queryFn: () => window.pb.plugins.list(),
+    enabled,
+  });
 }
 
 /**

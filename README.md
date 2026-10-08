@@ -34,6 +34,18 @@ Developer-only environment variables (ignored in packaged builds):
 
 Also available in any build: `PB_DEV_SOCKET` sets the developer socket path that `pb-plugin dev` and the app use.
 
+## Users and roles
+
+Photo Beaver starts in single-user mode: one Admin, no password. In **Settings**, an Admin can turn on **Multiple users**:
+
+1. Set a password for the Admin account.
+2. Save the recovery key that is shown once. It resets the Admin password if it is forgotten.
+3. Add people in **Settings > Users** as Viewer, Editor or Admin, each with a password or a 4 to 8 digit PIN. A Viewer or Editor can be limited to chosen sources and albums.
+
+With multiple users on, the app opens on a user picker and locks itself after the idle time set in Settings (and when the computer's screen locks). Sync and enrichment keep running while it is locked. On a Mac, an account can also sign in with Touch ID.
+
+What roles protect: roles control what people can do through the app. They do not protect the library files from someone with direct access to the disk or the operating system account; encrypting the library at rest is future work. Sign-in tokens for cloud sources stay in the operating system keychain of the account that added them.
+
 ## Layout
 
 - `apps/desktop`: Electron app (`src/main` Electron glue, `src/main/core` headless core services, `src/preload` bridge, `src/renderer` React UI)

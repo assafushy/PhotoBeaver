@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ErrorText } from '../components/ErrorText';
 import { buttonStyles, Modal } from '../components/Modal';
+import { useCan } from '../session/use-session';
 import { SetupError, SetupWaiting } from './SetupWaiting';
 import { useCancellableSetup } from './use-setup';
 
@@ -145,22 +146,31 @@ function ReconnectButton({ source, usesOAuth }: { source: SourceSummary; usesOAu
   );
 }
 
-function Actions({ source, usesOAuth }: { source: SourceSummary; usesOAuth: boolean }) {
+function PauseButton({ source }: { source: SourceSummary }) {
   const { t } = useTranslation();
+  const paused = source.syncState === 'paused';
+  return (
+    <button
+      type="button"
+      className={buttonStyles.secondary}
+      onClick={() => togglePause(source, paused)}
+    >
+      {t(paused ? 'sources.resume' : 'sources.pause')}
+    </button>
+  );
+}
+
+function Actions({ source, usesOAuth }: { source: SourceSummary; usesOAuth: boolean }) {
+  const canSync = useCan('sources.sync');
+  const canManage = useCan('sources.manage');
   const paused = source.syncState === 'paused';
   const needsAuth = source.syncState === 'auth_required';
   return (
     <div className="flex flex-wrap gap-2">
-      {needsAuth && <ReconnectButton source={source} usesOAuth={usesOAuth} />}
-      {!paused && !needsAuth && <SyncNowButton source={source} />}
-      <button
-        type="button"
-        className={buttonStyles.secondary}
-        onClick={() => togglePause(source, paused)}
-      >
-        {t(paused ? 'sources.resume' : 'sources.pause')}
-      </button>
-      <RemoveButton source={source} />
+      {canManage && needsAuth && <ReconnectButton source={source} usesOAuth={usesOAuth} />}
+      {canSync && !paused && !needsAuth && <SyncNowButton source={source} />}
+      {canSync && <PauseButton source={source} />}
+      {canManage && <RemoveButton source={source} />}
     </div>
   );
 }
@@ -198,6 +208,7 @@ function useUsesOAuth(pluginId: string): boolean {
   const { data } = useQuery({
     queryKey: ['connectors'],
     queryFn: () => window.pb.sources.connectors(),
+    enabled: useCan('sources.manage'),
   });
   return data?.find((connector) => connector.id === pluginId)?.usesOAuth ?? false;
 }

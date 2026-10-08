@@ -1,4 +1,9 @@
-export const IPC_ERROR_CODES = ['PERMISSION_DENIED', 'INVALID_INPUT', 'INTERNAL'] as const;
+export const IPC_ERROR_CODES = [
+  'PERMISSION_DENIED',
+  'LOCKED',
+  'INVALID_INPUT',
+  'INTERNAL',
+] as const;
 
 export type IpcErrorCode = (typeof IPC_ERROR_CODES)[number];
 

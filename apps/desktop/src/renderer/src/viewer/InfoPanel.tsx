@@ -5,6 +5,17 @@ import { formatBytes } from '../lib/format-bytes';
 import { usePbEvent } from '../lib/use-pb-event';
 import { formatFull } from '../library/dates';
 import {
+  AddToAlbum,
+  DateEditor,
+  FavoriteButton,
+  HideButton,
+  LocationEditor,
+  RemoveFromAlbumButton,
+  RerunButton,
+  TagEditor,
+} from './EditControls';
+import {
+  AlbumsRow,
   CameraRow,
   EnrichmentsRow,
   PeopleRow,
@@ -85,13 +96,33 @@ function MediaRows({ asset }: { asset: AssetDetail }) {
   );
 }
 
+function EditActions({ asset }: { asset: AssetDetail }) {
+  return (
+    <div className="mt-3 flex flex-col items-start gap-2">
+      <AddToAlbum asset={asset} />
+      <RemoveFromAlbumButton asset={asset} />
+      <RerunButton asset={asset} />
+    </div>
+  );
+}
+
+function WhenAndWhere({ asset }: { asset: AssetDetail }) {
+  return (
+    <>
+      <DateRow asset={asset} />
+      <DateEditor asset={asset} />
+      <PlaceRow asset={asset} />
+      <LocationEditor asset={asset} />
+    </>
+  );
+}
+
 function Details({ asset }: { asset: AssetDetail }) {
   const { t } = useTranslation();
   return (
     <>
       <dl>
-        <DateRow asset={asset} />
-        <PlaceRow asset={asset} />
+        <WhenAndWhere asset={asset} />
         <CameraRow asset={asset} />
         <MediaRows asset={asset} />
         <Row label={t('viewer.locations')}>
@@ -99,10 +130,22 @@ function Details({ asset }: { asset: AssetDetail }) {
         </Row>
         <PeopleRow asset={asset} />
         <TagsRow asset={asset} />
+        <TagEditor asset={asset} />
+        <AlbumsRow asset={asset} />
         <EnrichmentsRow asset={asset} />
       </dl>
+      <EditActions asset={asset} />
       <UndoMergeButton asset={asset} />
     </>
+  );
+}
+
+function QuickToggles({ asset }: { asset: AssetDetail }) {
+  return (
+    <div className="flex items-center gap-3">
+      <HideButton asset={asset} />
+      <FavoriteButton asset={asset} />
+    </div>
   );
 }
 
@@ -118,8 +161,9 @@ function useAssetDetail(assetId: string) {
 
 /**
  * Viewer info panel (SPEC 8.1): date and its origin, place, camera, dimensions,
- * type, every location the asset lives in with "Open in source", tags, plugin
- * data, and "Undo merge" for merged assets.
+ * type, every location the asset lives in with "Open in source", tags, albums,
+ * plugin data, and "Undo merge" for merged assets. Editors also get favorite,
+ * hide, tag, date, location and album controls, and "Re-run enrichment".
  */
 export function InfoPanel({ assetId }: { assetId: string }) {
   const { t } = useTranslation();
@@ -130,7 +174,10 @@ export function InfoPanel({ assetId }: { assetId: string }) {
       className="w-80 shrink-0 overflow-y-auto border-l border-neutral-800 bg-neutral-900 p-4 text-neutral-100"
       data-testid="viewer-info"
     >
-      <h2 className="mb-2 text-sm font-semibold">{t('viewer.info')}</h2>
+      <header className="mb-2 flex items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold">{t('viewer.info')}</h2>
+        {data && <QuickToggles asset={data} />}
+      </header>
       {data && <Details asset={data} />}
     </aside>
   );

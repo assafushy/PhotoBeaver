@@ -5,13 +5,23 @@ import {
   type IpcErrorCode,
   type IpcOutput,
   type IpcParsedInput,
+  type ChannelAccess,
   type IpcResult,
   type SessionUser,
 } from '@photobeaver/shared';
+import type { AccessScope } from '../core/access/scope';
 
 export interface HandlerContext {
   user: SessionUser;
+  scope: AccessScope | null;
 }
+
+export interface SessionView {
+  current(): SessionUser | null;
+  scope(): AccessScope | null;
+}
+
+const GUEST: SessionUser = { id: '', displayName: '', role: 'viewer', permissions: [] };
 
 export type IpcHandler<C extends IpcChannel> = (
   input: IpcParsedInput<C>,
@@ -43,7 +53,7 @@ export class IpcRegistry {
 
   constructor(
     private readonly transport: IpcTransport,
-    private readonly currentUser: () => SessionUser,
+    private readonly session: SessionView,
     private readonly logger: RegistryLogger,
   ) {}
 
@@ -77,24 +87,31 @@ export class IpcRegistry {
     raw: unknown,
   ): Promise<IpcResult<IpcOutput<C>>> {
     const contract = IPC_CONTRACT[channel];
-    const user = this.currentUser();
-    if (!user.permissions.includes(contract.requires)) {
-      this.logger.warn({ channel, userId: user.id }, 'IPC permission denied');
-      return failure('PERMISSION_DENIED', `Missing permission: ${contract.requires}`);
-    }
+    const denied = this.deny(channel, contract.requires);
+    if (denied) return denied;
     const parsed = contract.input.safeParse(raw);
     if (!parsed.success) return failure('INVALID_INPUT', parsed.error.message);
-    return this.run(channel, handler, parsed.data as IpcParsedInput<C>, user);
+    const ctx = { user: this.session.current() ?? GUEST, scope: this.session.scope() };
+    return this.run(channel, handler, parsed.data as IpcParsedInput<C>, ctx);
+  }
+
+  private deny(channel: IpcChannel, requires: ChannelAccess): IpcResult<never> | null {
+    if (requires === 'public') return null;
+    const user = this.session.current();
+    if (!user) return failure('LOCKED', 'Sign in to continue');
+    if (user.permissions.includes(requires)) return null;
+    this.logger.warn({ channel, userId: user.id }, 'IPC permission denied');
+    return failure('PERMISSION_DENIED', `Missing permission: ${requires}`);
   }
 
   private async run<C extends IpcChannel>(
     channel: C,
     handler: IpcHandler<C>,
     input: IpcParsedInput<C>,
-    user: SessionUser,
+    ctx: HandlerContext,
   ): Promise<IpcResult<IpcOutput<C>>> {
     try {
-      return { ok: true, value: await handler(input, { user }) };
+      return { ok: true, value: await handler(input, ctx) };
     } catch (error) {
       this.logger.error({ channel, err: error }, 'IPC handler failed');
       return failure('INTERNAL', error instanceof Error ? error.message : String(error));

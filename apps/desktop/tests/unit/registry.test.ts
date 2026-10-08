@@ -4,10 +4,15 @@ import { IpcRegistry } from '../../src/main/ipc/registry';
 import { FakeTransport, silentLogger, userWithRole } from './helpers';
 
 const EMPTY_PAGE = { items: [], nextCursor: null, total: 0 };
+const APP_INFO = { version: '1', platform: 'test', userDataDir: '/u', libraryDir: '/l' };
 
-function setup(user: SessionUser) {
+function setup(user: SessionUser | null) {
   const transport = new FakeTransport();
-  const registry = new IpcRegistry(transport, () => user, silentLogger);
+  const registry = new IpcRegistry(
+    transport,
+    { current: () => user, scope: () => null },
+    silentLogger,
+  );
   return { transport, registry };
 }
 
@@ -51,18 +56,31 @@ describe('IpcRegistry', () => {
     expect(result).toEqual({ ok: false, error: { code: 'INTERNAL', message: 'boom' } });
   });
 
+  it('answers LOCKED while nobody is signed in, but serves public channels', async () => {
+    const { transport, registry } = setup(null);
+    const handler = vi.fn(() => EMPTY_PAGE);
+    registry.handle('library.query', handler);
+    registry.handle('auth.users', () => []);
+    expect(await transport.invoke('library.query', {})).toEqual({
+      ok: false,
+      error: { code: 'LOCKED', message: 'Sign in to continue' },
+    });
+    expect(handler).not.toHaveBeenCalled();
+    expect(await transport.invoke('auth.users')).toEqual({ ok: true, value: [] });
+  });
+
   it('refuses unknown and duplicate channels', () => {
     const { registry } = setup(userWithRole('admin'));
     expect(() => registry.handle('nope' as IpcChannel, () => EMPTY_PAGE as never)).toThrow(
       /Unknown/,
     );
-    registry.handle('session.current', (_i, ctx) => ctx.user);
-    expect(() => registry.handle('session.current', (_i, ctx) => ctx.user)).toThrow(/already/);
+    registry.handle('app.info', () => APP_INFO);
+    expect(() => registry.handle('app.info', () => APP_INFO)).toThrow(/already/);
   });
 
   it('reports channels that have no handler', () => {
     const { registry } = setup(userWithRole('admin'));
-    registry.handle('session.current', (_i, ctx) => ctx.user);
-    expect(() => registry.assertComplete()).toThrow(/app\.info, library\.query, library\.facets/);
+    registry.handle('app.info', () => APP_INFO);
+    expect(() => registry.assertComplete()).toThrow(/session\.current, auth\.users/);
   });
 });

@@ -139,6 +139,20 @@ export class HostHandle {
     this.running = null;
   }
 
+  /**
+   * Kills the host at once, with no `deactivate` round trip (app quit). A host
+   * that is still starting is killed too, and its start gives up.
+   */
+  kill(): void {
+    this.stops++;
+    this.stopping = true;
+    for (const target of [this.running?.connection.peer, this.launching?.peer]) target?.close();
+    this.running?.host.kill();
+    this.launching?.host.kill();
+    this.running = null;
+    this.launching = null;
+  }
+
   /** Clears the crashed state ("Re-enable"). */
   reset(): void {
     this.gaveUp = false;

@@ -30,6 +30,10 @@ jobs:
 
       - run: pnpm lint
 
+      - name: Functions at most 20 lines
+        if: matrix.os == 'ubuntu-latest'
+        run: pnpm check:fn
+
       - run: pnpm typecheck
 
       - name: Cache face models (real-model test, Ubuntu only)

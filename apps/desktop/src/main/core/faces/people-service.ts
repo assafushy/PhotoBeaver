@@ -1,12 +1,14 @@
 import { schema, type LibraryDb } from '@photobeaver/db';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { ulid } from 'ulid';
+import type { AccessScope } from '../access/scope';
 import { systemClock, type Clock } from '../clock';
 import { refreshSearchText } from '../enrich/search-text';
 import type { EventSink } from '../events/event-sink';
 import type { JobQueue } from '../jobs/job-queue';
 import { PRIORITY } from '../jobs/job-types';
 import { clusterFaces, type ClusterParams } from './clustering';
+import { assertFacesVisible, assertPeopleVisible } from './people-access';
 import type { FaceVectors } from './face-vectors';
 import {
   assetsOfFaces,
@@ -66,12 +68,26 @@ export class PeopleService {
     if (touched.length > 0) this.changed(touched);
   };
 
-  list(): PersonSummary[] {
-    return listPeople(this.deps.db);
+  /**
+   * People the user can see, with counts from visible faces only.
+   *
+   * @param scope - The signed-in user's scope, or null for the whole library.
+   * @returns The people.
+   */
+  list(scope: AccessScope | null): PersonSummary[] {
+    return listPeople(this.deps.db, scope);
   }
 
-  faces(personId: string, after: string | null) {
-    return personFaces(this.deps.db, personId, after);
+  /**
+   * One page of a person's visible faces.
+   *
+   * @param personId - Person id.
+   * @param after - Face id to continue after, or null.
+   * @param scope - The signed-in user's scope, or null for the whole library.
+   * @returns Faces and the next cursor.
+   */
+  faces(personId: string, after: string | null, scope: AccessScope | null) {
+    return personFaces(this.deps.db, personId, after, scope);
   }
 
   /**
@@ -79,8 +95,10 @@ export class PeopleService {
    *
    * @param personId - Person id.
    * @param name - New name.
+   * @param scope - The signed-in user's scope; the person must be visible.
    */
-  rename(personId: string, name: string): void {
+  rename(personId: string, name: string, scope: AccessScope | null): void {
+    assertPeopleVisible(this.deps.db, scope, [personId]);
     const value = name.trim() || null;
     this.deps.db.update(people).set({ name: value }).where(eq(people.id, personId)).run();
     this.changed(assetsOfPeople(this.deps.db, [personId]));
@@ -91,9 +109,11 @@ export class PeopleService {
    *
    * @param fromId - Person to merge away.
    * @param intoId - Person that remains.
+   * @param scope - The signed-in user's scope; both people must be visible.
    */
-  merge(fromId: string, intoId: string): void {
+  merge(fromId: string, intoId: string, scope: AccessScope | null): void {
     if (fromId === intoId) return;
+    assertPeopleVisible(this.deps.db, scope, [fromId, intoId]);
     const affected = assetsOfPeople(this.deps.db, [fromId]);
     this.deps.db.transaction((tx) => {
       tx.update(faces).set({ personId: intoId }).where(eq(faces.personId, fromId)).run();
@@ -108,9 +128,12 @@ export class PeopleService {
    *
    * @param faceIds - Faces to move.
    * @param target - Existing person or a new one.
+   * @param scope - The signed-in user's scope; faces and target must be visible.
    * @returns The person the faces now belong to.
    */
-  moveFaces(faceIds: readonly string[], target: MoveTarget): string {
+  moveFaces(faceIds: readonly string[], target: MoveTarget, scope: AccessScope | null): string {
+    assertFacesVisible(this.deps.db, scope, faceIds);
+    if ('personId' in target) assertPeopleVisible(this.deps.db, scope, [target.personId]);
     const personId = 'personId' in target ? target.personId : this.createPerson();
     const affected = assetsOfFaces(this.deps.db, faceIds);
     this.deps.db.transaction((tx) => {
@@ -134,8 +157,10 @@ export class PeopleService {
    * clustering never puts it back with that person.
    *
    * @param faceId - Face id.
+   * @param scope - The signed-in user's scope; the face must be visible.
    */
-  rejectFace(faceId: string): void {
+  rejectFace(faceId: string, scope: AccessScope | null): void {
+    assertFacesVisible(this.deps.db, scope, [faceId]);
     const face = this.deps.db.select().from(faces).where(eq(faces.id, faceId)).get();
     if (!face?.personId) return;
     this.deps.db.transaction((tx) => {
@@ -156,8 +181,11 @@ export class PeopleService {
    *
    * @param personId - Person id.
    * @param faceId - One of the person's faces.
+   * @param scope - The signed-in user's scope; person and face must be visible.
    */
-  setCover(personId: string, faceId: string): void {
+  setCover(personId: string, faceId: string, scope: AccessScope | null): void {
+    assertPeopleVisible(this.deps.db, scope, [personId]);
+    assertFacesVisible(this.deps.db, scope, [faceId]);
     this.deps.db.update(people).set({ coverFaceId: faceId }).where(eq(people.id, personId)).run();
     this.deps.events.emit('people.changed', {});
   }

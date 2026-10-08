@@ -43,3 +43,17 @@ export const isUndated = (key: string): boolean => key === UNDATED_KEY;
 export const formatDay = (capturedAt: number): string => dayFormat.format(capturedAt);
 export const formatMonth = (capturedAt: number): string => monthFormat.format(capturedAt);
 export const formatFull = (capturedAt: number): string => fullFormat.format(capturedAt);
+
+const instantFormat = new Intl.DateTimeFormat(undefined, {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+});
+
+/**
+ * A real moment (audit entries, sign-ins) in the computer's own time zone,
+ * unlike capture times, which are floating local time.
+ *
+ * @param timestamp - Epoch milliseconds.
+ * @returns The formatted date and time.
+ */
+export const formatInstant = (timestamp: number): string => instantFormat.format(timestamp);

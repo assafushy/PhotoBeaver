@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { faceUrl } from '../people/use-people';
+import { useCan } from '../session/use-session';
 import { cameraLines, formatValue } from './camera';
 
 export function Row({ label, children }: { label: string; children: ReactNode }) {
@@ -98,16 +99,34 @@ export function PeopleRow({ asset }: { asset: AssetDetail }) {
 
 export function TagsRow({ asset }: { asset: AssetDetail }) {
   const { t } = useTranslation();
-  if (asset.tags.length === 0) return null;
+  const editable = useCan('assets.edit');
+  const shown = editable ? asset.tags.filter((tag) => tag.kind !== 'user') : asset.tags;
+  if (shown.length === 0) return null;
   return (
     <Row label={t('viewer.tags')}>
       <ul className="flex flex-wrap gap-1">
-        {asset.tags.map((tag) => (
+        {shown.map((tag) => (
           <li
             key={`${tag.kind}:${tag.name}`}
             className="rounded bg-neutral-800 px-2 py-0.5 text-xs"
           >
             {tag.name}
+          </li>
+        ))}
+      </ul>
+    </Row>
+  );
+}
+
+export function AlbumsRow({ asset }: { asset: AssetDetail }) {
+  const { t } = useTranslation();
+  if (asset.albums.length === 0) return null;
+  return (
+    <Row label={t('edits.albums')}>
+      <ul className="flex flex-wrap gap-1" data-testid="viewer-albums">
+        {asset.albums.map((album) => (
+          <li key={album.id} className="rounded bg-neutral-800 px-2 py-0.5 text-xs">
+            {album.name}
           </li>
         ))}
       </ul>

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useFilterStore } from '../search/filter-store';
+import { useCan } from '../session/use-session';
 import { FaceActions } from './FaceActions';
 import { FaceStrip } from './FaceStrip';
 import { PersonName } from './PersonName';
@@ -69,6 +70,7 @@ function ShowPhotosButton({ personId }: { personId: string }) {
 
 function PersonHeader({ person, others }: { person: PersonSummary; others: PersonSummary[] }) {
   const { t } = useTranslation();
+  const canEdit = useCan('people.edit');
   return (
     <header className="flex flex-wrap items-center gap-3">
       <Link to="/people" className="text-sm text-amber-600 hover:underline">
@@ -79,7 +81,7 @@ function PersonHeader({ person, others }: { person: PersonSummary; others: Perso
         {t('people.photos', { count: person.assetCount })}
       </span>
       <ShowPhotosButton personId={person.id} />
-      <MergeInto person={person} others={others} />
+      {canEdit && <MergeInto person={person} others={others} />}
     </header>
   );
 }
@@ -92,25 +94,46 @@ function usePersonData(personId: string) {
   return { person, others, faces: faces?.items ?? [] };
 }
 
+type PersonData = ReturnType<typeof usePersonData>;
+
+function PersonFaces({
+  personId,
+  others,
+  faces,
+}: Omit<PersonData, 'person'> & { personId: string }) {
+  const selection = useSelection();
+  const canEdit = useCan('people.edit');
+  return (
+    <>
+      {canEdit && (
+        <FaceActions
+          personId={personId}
+          selected={[...selection.selected]}
+          others={others}
+          onDone={selection.clear}
+        />
+      )}
+      <FaceStrip
+        faces={faces}
+        selected={selection.selected}
+        onToggle={canEdit ? selection.toggle : () => undefined}
+      />
+    </>
+  );
+}
+
 /**
  * One person (SPEC 8.1 #5): rename, merge into someone else, and split by
- * selecting faces that belong to another person.
+ * selecting faces that belong to another person. Read-only without people.edit.
  */
 export function PersonPage() {
   const { personId = '' } = useParams();
   const { person, others, faces } = usePersonData(personId);
-  const selection = useSelection();
   if (!person) return null;
   return (
     <div className="flex-1 space-y-4 overflow-y-auto p-6" data-testid="person-page">
       <PersonHeader person={person} others={others} />
-      <FaceActions
-        personId={personId}
-        selected={[...selection.selected]}
-        others={others}
-        onDone={selection.clear}
-      />
-      <FaceStrip faces={faces} selected={selection.selected} onToggle={selection.toggle} />
+      <PersonFaces personId={personId} others={others} faces={faces} />
     </div>
   );
 }

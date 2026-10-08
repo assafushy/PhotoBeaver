@@ -82,7 +82,7 @@ describe('faces and people in the headless core', () => {
       { pluginId: 'com.photobeaver.connector-local', config: { root } },
       'admin',
     );
-    await vi.waitFor(() => expect(core.people.list()).toHaveLength(2), {
+    await vi.waitFor(() => expect(core.people.list(null)).toHaveLength(2), {
       timeout: 60_000,
       interval: 250,
     });
@@ -99,12 +99,12 @@ describe('faces and people in the headless core', () => {
     const vectors = sqlite().prepare('SELECT COUNT(*) n FROM faces_vec').get() as { n: number };
     expect(faces.n).toBe(6);
     expect(vectors.n).toBe(6);
-    expect(core.people.list().map((p) => p.faceCount)).toEqual([3, 3]);
+    expect(core.people.list(null).map((p) => p.faceCount)).toEqual([3, 3]);
   });
 
   it('makes a named person searchable', () => {
-    const [person] = core.people.list();
-    core.people.rename(person!.id, 'Grace Hopper');
+    const [person] = core.people.list(null);
+    core.people.rename(person!.id, 'Grace Hopper', null);
     const hits = sqlite()
       .prepare("SELECT COUNT(*) n FROM assets_fts WHERE assets_fts MATCH 'hopper'")
       .get() as { n: number };

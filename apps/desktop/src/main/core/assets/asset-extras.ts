@@ -1,9 +1,34 @@
+import { albumScopeCondition } from '../albums/album-queries';
 import { schema, type LibraryDb } from '@photobeaver/db';
 import type { AssetDetail } from '@photobeaver/shared';
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, isNull } from 'drizzle-orm';
+import type { AccessScope } from '../access/scope';
 import { SEARCH_TEXT_KEY } from '../enrich/search-text';
 
-const { assetTags, tags, enrichments, assetMerges } = schema;
+const { assetTags, tags, enrichments, assetMerges, albums, albumAssets } = schema;
+
+/**
+ * Albums that contain an asset; a scoped user sees the same albums as on the Albums screen.
+ *
+ * @param db - Library database.
+ * @param assetId - Asset id.
+ * @param scope - The signed-in user's scope, or null for the whole library.
+ * @returns Albums by name; `user` marks albums made in the app (no source).
+ */
+export function albumsOf(
+  db: LibraryDb,
+  assetId: string,
+  scope: AccessScope | null,
+): AssetDetail['albums'] {
+  return db
+    .select({ id: albums.id, name: albums.name, sourceId: albums.sourceId })
+    .from(albumAssets)
+    .innerJoin(albums, eq(albums.id, albumAssets.albumId))
+    .where(and(eq(albumAssets.assetId, assetId), albumScopeCondition(scope)))
+    .orderBy(asc(albums.name))
+    .all()
+    .map((row) => ({ id: row.id, name: row.name, user: row.sourceId === null }));
+}
 
 /**
  * Tags of an asset, places first.

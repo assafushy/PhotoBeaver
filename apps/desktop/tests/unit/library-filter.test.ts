@@ -44,7 +44,9 @@ function addAsset(
 describe('library filters', () => {
   let temp: TempLibrary;
   const ids = (filter: object) =>
-    queryLibraryPage(temp.library.db, { cursor: null, limit: 100, filter }).items.map((i) => i.id);
+    queryLibraryPage(temp.library.db, { cursor: null, limit: 100, filter }, null).items.map(
+      (i) => i.id,
+    );
 
   beforeEach(async () => {
     temp = await openTempLibrary();
@@ -79,25 +81,36 @@ describe('library filters', () => {
   });
 
   it('pages and counts within a filter', () => {
-    const first = queryLibraryPage(temp.library.db, {
-      cursor: null,
-      limit: 1,
-      filter: { text: 'paris' },
-    });
+    const first = queryLibraryPage(
+      temp.library.db,
+      {
+        cursor: null,
+        limit: 1,
+        filter: { text: 'paris' },
+      },
+      null,
+    );
     expect(first).toMatchObject({ total: 2, items: [{ id: 'a' }] });
-    const second = queryLibraryPage(temp.library.db, {
-      cursor: first.nextCursor,
-      limit: 1,
-      filter: { text: 'paris' },
-    });
+    const second = queryLibraryPage(
+      temp.library.db,
+      {
+        cursor: first.nextCursor,
+        limit: 1,
+        filter: { text: 'paris' },
+      },
+      null,
+    );
     expect(second.items.map((i) => i.id)).toEqual(['c']);
   });
 
   it('returns facets and map points', () => {
-    expect(libraryFacets(temp.library.db).sources.map((s) => [s.id, s.count])).toEqual([
+    expect(libraryFacets(temp.library.db, null).sources.map((s) => [s.id, s.count])).toEqual([
       ['s1', 2],
       ['s2', 2],
     ]);
-    expect(geoPoints(temp.library.db, {})).toEqual({ points: [['a', 48.8, 2]], truncated: false });
+    expect(geoPoints(temp.library.db, {}, null)).toEqual({
+      points: [['a', 48.8, 2]],
+      truncated: false,
+    });
   });
 });
