@@ -13,7 +13,8 @@
     "test": "turbo run test",
     "e2e": "turbo run e2e",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "check:fn": "node scripts/check-function-length.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
