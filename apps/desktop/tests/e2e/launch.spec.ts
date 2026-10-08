@@ -33,7 +33,7 @@ test('exposes only the typed bridge to the renderer', async () => {
   });
   expect(globals).toEqual({ hasPb: true, hasRequire: false });
   const session = await page.evaluate(() => (globalThis as RendererGlobals).pb.session.current());
-  expect(session.role).toBe('admin');
+  expect(session).toMatchObject({ state: 'signedIn', multiUser: false, user: { role: 'admin' } });
 });
 
 test('navigates between screens from the sidebar', async () => {

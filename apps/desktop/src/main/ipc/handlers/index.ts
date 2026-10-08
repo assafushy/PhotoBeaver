@@ -1,3 +1,6 @@
+import type { SessionService } from '../../session/session-service';
+import { registerSessionHandlers } from './session';
+import { registerUserHandlers, type UserHandlerDeps } from './users';
 import type { LibraryDb } from '@photobeaver/db';
 import type { AppInfo } from '@photobeaver/shared';
 import { getAssetDetail, instanceExternalUrl } from '../../core/assets/asset-service';
@@ -18,11 +21,14 @@ export interface HandlerDeps {
   plugins: PluginHandlerDeps;
   duplicates: DuplicatesService;
   people: PeopleService;
+  session: SessionService;
+  users: UserHandlerDeps;
+  capabilities: () => { faces: boolean; merge: boolean };
 }
 
 function registerLibraryHandlers(registry: IpcRegistry, deps: HandlerDeps): void {
   registry.handle('app.info', () => deps.appInfo());
-  registry.handle('session.current', (_input, ctx) => ctx.user);
+  registry.handle('app.capabilities', () => deps.capabilities());
   registry.handle('library.query', (input) => queryLibraryPage(deps.db, input));
   registry.handle('assets.get', ({ id }) => getAssetDetail(deps.db, id));
   registry.handle('assets.openInSource', async ({ id }) => {
@@ -62,6 +68,8 @@ function registerSourceHandlers(registry: IpcRegistry, deps: HandlerDeps): void 
  * @param deps - Services the handlers depend on.
  */
 export function registerHandlers(registry: IpcRegistry, deps: HandlerDeps): void {
+  registerSessionHandlers(registry, deps.session);
+  registerUserHandlers(registry, deps.users);
   registerLibraryHandlers(registry, deps);
   registerSourceHandlers(registry, deps);
   registerPluginHandlers(registry, deps.plugins);

@@ -1,26 +1,9 @@
-import { schema, type LibraryDb } from '@photobeaver/db';
+import type { LibraryDb } from '@photobeaver/db';
 import type { AppSettings } from '@photobeaver/shared';
-import { eq } from 'drizzle-orm';
+import { readSetting as read, writeSetting as write } from '../settings-store';
 import { ALWAYS_ASK_KEY } from './merge-service';
 
 const TILE_URL_KEY = 'map.tileUrl';
-
-function read<T>(db: LibraryDb, key: string, fallback: T): T {
-  const row = db
-    .select({ value: schema.settings.valueJson })
-    .from(schema.settings)
-    .where(eq(schema.settings.key, key))
-    .get();
-  return row?.value ? (JSON.parse(row.value) as T) : fallback;
-}
-
-function write(db: LibraryDb, key: string, value: unknown): void {
-  const valueJson = JSON.stringify(value);
-  db.insert(schema.settings)
-    .values({ key, valueJson })
-    .onConflictDoUpdate({ target: schema.settings.key, set: { valueJson } })
-    .run();
-}
 
 /**
  * Validates an online map tile URL template: https only, with {z}, {x} and {y}.

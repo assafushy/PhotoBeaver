@@ -1,3 +1,12 @@
+import type {
+  AlbumSummary,
+  AuditPage,
+  PickerUser,
+  SessionState,
+  SessionUser,
+  UserSummary,
+  UsersSettings,
+} from './access-contract';
 import type { PbEventName, PbEvents } from './events';
 import type {
   AddSourceInput,
@@ -16,7 +25,6 @@ import type {
   LibraryPage,
   LibraryQueryInput,
   PluginSummary,
-  SessionUser,
   SourceSummary,
   StagedPackageSummary,
 } from './ipc-contract';
@@ -24,8 +32,57 @@ import type {
 export type Unsubscribe = () => void;
 
 export interface PbApi {
-  app: { info(): Promise<AppInfo> };
-  session: { current(): Promise<SessionUser> };
+  app: { info(): Promise<AppInfo>; capabilities(): Promise<{ faces: boolean; merge: boolean }> };
+  session: { current(): Promise<SessionState> };
+  auth: {
+    users(): Promise<PickerUser[]>;
+    signIn(userId: string, secret: string): Promise<SessionUser>;
+    signInBiometric(userId: string): Promise<SessionUser>;
+    recover(recoveryKey: string, newPassword: string): Promise<SessionUser>;
+    lock(): Promise<null>;
+  };
+  users: {
+    list(): Promise<UserSummary[]>;
+    create(input: {
+      displayName: string;
+      role: SessionUser['role'];
+      secret: string;
+      secretKind: 'password' | 'pin';
+    }): Promise<UserSummary>;
+    update(input: {
+      id: string;
+      displayName?: string;
+      role?: SessionUser['role'];
+      secret?: string;
+      secretKind?: 'password' | 'pin';
+      biometric?: boolean;
+      disabled?: boolean;
+    }): Promise<UserSummary>;
+    delete(id: string): Promise<null>;
+    setScopes(id: string, scopes: { sourceIds: string[]; albumIds: string[] }): Promise<null>;
+    settings(): Promise<UsersSettings>;
+    enableMulti(password: string): Promise<{ recoveryKey: string }>;
+    disableMulti(password: string): Promise<null>;
+    setAutoLock(minutes: number): Promise<null>;
+  };
+  edits: {
+    setFavorite(ids: string[], favorite: boolean): Promise<null>;
+    setHidden(ids: string[], hidden: boolean): Promise<null>;
+    addTag(ids: string[], name: string): Promise<null>;
+    removeTag(ids: string[], name: string): Promise<null>;
+    setDate(id: string, capturedAt: number | null): Promise<null>;
+    setLocation(id: string, location: { lat: number; lon: number } | null): Promise<null>;
+    rerun(ids: string[]): Promise<null>;
+  };
+  albums: {
+    list(): Promise<AlbumSummary[]>;
+    create(name: string): Promise<AlbumSummary>;
+    rename(id: string, name: string): Promise<null>;
+    delete(id: string): Promise<null>;
+    addAssets(id: string, assetIds: string[]): Promise<null>;
+    removeAssets(id: string, assetIds: string[]): Promise<null>;
+  };
+  audit: { list(before?: number | null, limit?: number): Promise<AuditPage> };
   library: {
     query(input: LibraryQueryInput): Promise<LibraryPage>;
     facets(): Promise<LibraryFacets>;

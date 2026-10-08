@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { PERMISSIONS, type Permission } from './permissions';
-import { ROLES } from './roles';
+import { EDIT_CHANNELS, SESSION_CHANNELS, USER_CHANNELS } from './access-contract';
+import { channel } from './ipc-channel';
 import type { ConfigSchema } from './config-schema';
 
 const emptyInput = z.undefined();
@@ -19,13 +19,6 @@ const assetSummarySchema = z.object({
   thumbState: z.enum(['pending', 'ready', 'failed']).nullable(),
 });
 
-export const sessionUserSchema = z.object({
-  id: z.string(),
-  displayName: z.string(),
-  role: z.enum(ROLES),
-  permissions: z.array(z.enum(PERMISSIONS)),
-});
-
 export const appInfoSchema = z.object({
   version: z.string(),
   platform: z.string(),
@@ -40,6 +33,7 @@ export const libraryFilterSchema = z.object({
   sourceIds: z.array(z.string()).max(100).optional(),
   mediaTypes: z.array(z.enum(['image', 'video'])).optional(),
   tagIds: z.array(z.string()).max(20).optional(),
+  albumIds: z.array(z.string()).max(20).optional(),
   personIds: z.array(z.string()).max(20).optional(),
   favoritesOnly: z.boolean().optional(),
   multiSource: z.boolean().optional(),
@@ -270,23 +264,11 @@ export const pluginSettingsSchema = z.object({
   values: z.record(z.string(), z.unknown()),
 });
 
-interface ChannelContract<I extends z.ZodType, O extends z.ZodType> {
-  requires: Permission;
-  input: I;
-  output: O;
-}
-
-const channel = <I extends z.ZodType, O extends z.ZodType>(
-  contract: ChannelContract<I, O>,
-): ChannelContract<I, O> => contract;
-
 export const IPC_CONTRACT = {
+  ...SESSION_CHANNELS,
+  ...USER_CHANNELS,
+  ...EDIT_CHANNELS,
   'app.info': channel({ requires: 'assets.view', input: emptyInput, output: appInfoSchema }),
-  'session.current': channel({
-    requires: 'assets.view',
-    input: emptyInput,
-    output: sessionUserSchema,
-  }),
   'library.query': channel({
     requires: 'assets.view',
     input: libraryQueryInputSchema,
@@ -406,7 +388,7 @@ export const IPC_CONTRACT = {
     input: z.object({ id: z.string(), values: z.record(z.string(), z.unknown()) }),
     output: nothing,
   }),
-  'plugins.rerun': channel({ requires: 'sources.sync', input: idInput, output: nothing }),
+  'plugins.rerun': channel({ requires: 'plugins.manage', input: idInput, output: nothing }),
   'plugins.openNotice': channel({ requires: 'plugins.manage', input: idInput, output: nothing }),
   'people.list': channel({
     requires: 'assets.view',
@@ -485,7 +467,6 @@ export type IpcParsedInput<C extends IpcChannel> = z.output<IpcContract[C]['inpu
 export type IpcOutput<C extends IpcChannel> = z.output<IpcContract[C]['output']>;
 
 export type AppInfo = IpcOutput<'app.info'>;
-export type SessionUser = IpcOutput<'session.current'>;
 export type LibraryQueryInput = IpcInput<'library.query'>;
 export type LibraryPage = IpcOutput<'library.query'>;
 export type AssetSummary = LibraryPage['items'][number];

@@ -2,7 +2,6 @@ import { createReadStream } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import { Readable } from 'node:stream';
 import { schema, type LibraryDb } from '@photobeaver/db';
-import type { SessionUser } from '@photobeaver/shared';
 import { eq } from 'drizzle-orm';
 import { protocol } from 'electron';
 import type { Core } from '../core/core';
@@ -10,6 +9,7 @@ import { PRIORITY } from '../core/jobs/job-types';
 import { thumbnailDedupeKey } from '../core/sync/batch-writer';
 import { faceCrop } from '../core/faces/face-crop';
 import { thumbPath, type ThumbSize } from '../core/thumbnails/thumb-paths';
+import type { SessionView } from '../ipc/registry';
 import { parseMediaUrl, PB_MEDIA_SCHEME } from './media-url';
 import { parseRange } from './range';
 
@@ -17,7 +17,7 @@ export interface MediaProtocolDeps {
   db: LibraryDb;
   core: Core;
   thumbsDir: string;
-  currentUser: () => SessionUser;
+  session: SessionView;
 }
 
 const status = (code: number): Response => new Response(null, { status: code });
@@ -112,7 +112,7 @@ async function serveOriginal(
 async function handle(deps: MediaProtocolDeps, request: Request): Promise<Response> {
   const media = parseMediaUrl(request.url);
   if (!media) return status(400);
-  if (!deps.currentUser().permissions.includes('assets.view')) return status(403);
+  if (!deps.session.current()?.permissions.includes('assets.view')) return status(403);
   if (media.kind === 'thumb') return serveThumb(deps, media.assetId, media.size);
   if (media.kind === 'face') return serveFace(deps, media.faceId);
   return serveOriginal(deps, media.assetId, request);

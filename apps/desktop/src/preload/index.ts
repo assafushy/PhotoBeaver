@@ -43,8 +43,44 @@ const byId =
     invoke(channel, { id } as IpcInput<C>);
 
 const api: PbApi = {
-  app: { info: () => invoke('app.info') },
+  app: { info: () => invoke('app.info'), capabilities: () => invoke('app.capabilities') },
   session: { current: () => invoke('session.current') },
+  auth: {
+    users: () => invoke('auth.users'),
+    signIn: (userId, secret) => invoke('auth.signIn', { userId, secret }),
+    signInBiometric: (userId) => invoke('auth.signInBiometric', { userId }),
+    recover: (recoveryKey, newPassword) => invoke('auth.recover', { recoveryKey, newPassword }),
+    lock: () => invoke('auth.lock'),
+  },
+  users: {
+    list: () => invoke('users.list'),
+    create: (input) => invoke('users.create', input),
+    update: (input) => invoke('users.update', input),
+    delete: byId('users.delete'),
+    setScopes: (id, scopes) => invoke('users.setScopes', { id, ...scopes }),
+    settings: () => invoke('users.settings'),
+    enableMulti: (password) => invoke('users.enableMulti', { password }),
+    disableMulti: (password) => invoke('users.disableMulti', { password }),
+    setAutoLock: (minutes) => invoke('users.setAutoLock', { minutes }),
+  },
+  edits: {
+    setFavorite: (ids, favorite) => invoke('assets.setFavorite', { ids, favorite }),
+    setHidden: (ids, hidden) => invoke('assets.setHidden', { ids, hidden }),
+    addTag: (ids, name) => invoke('assets.addTag', { ids, name }),
+    removeTag: (ids, name) => invoke('assets.removeTag', { ids, name }),
+    setDate: (id, capturedAt) => invoke('assets.setDate', { id, capturedAt }),
+    setLocation: (id, location) => invoke('assets.setLocation', { id, location }),
+    rerun: (ids) => invoke('assets.rerun', { ids }),
+  },
+  albums: {
+    list: () => invoke('albums.list'),
+    create: (name) => invoke('albums.create', { name }),
+    rename: (id, name) => invoke('albums.rename', { id, name }),
+    delete: byId('albums.delete'),
+    addAssets: (id, assetIds) => invoke('albums.addAssets', { id, assetIds }),
+    removeAssets: (id, assetIds) => invoke('albums.removeAssets', { id, assetIds }),
+  },
+  audit: { list: (before = null, limit = 100) => invoke('audit.list', { before, limit }) },
   library: {
     query: (input) => invoke('library.query', input),
     facets: () => invoke('library.facets'),

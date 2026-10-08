@@ -1,3 +1,4 @@
+import { desc, eq, lt } from 'drizzle-orm';
 import { schema, type LibraryDb } from '@photobeaver/db';
 
 export interface AuditEntry {
@@ -26,4 +27,33 @@ export function writeAudit(db: LibraryDb, entry: AuditEntry, now: number): void 
       createdAt: now,
     })
     .run();
+}
+
+/**
+ * One page of the audit log, newest first (Activity screen).
+ *
+ * @param db - Database.
+ * @param before - Show entries older than this id, or null for the newest.
+ * @param limit - Page size.
+ * @returns Entries with the acting user's name, and the cursor for the next page.
+ */
+export function listAudit(db: LibraryDb, before: number | null, limit: number) {
+  const rows = db
+    .select({ entry: schema.auditLog, userName: schema.users.displayName })
+    .from(schema.auditLog)
+    .leftJoin(schema.users, eq(schema.users.id, schema.auditLog.userId))
+    .where(before === null ? undefined : lt(schema.auditLog.id, before))
+    .orderBy(desc(schema.auditLog.id))
+    .limit(limit + 1)
+    .all();
+  const items = rows.slice(0, limit).map(({ entry, userName }) => ({
+    id: entry.id,
+    userName: userName ?? null,
+    action: entry.action,
+    targetType: entry.targetType ?? null,
+    targetId: entry.targetId ?? null,
+    details: entry.detailsJson ? (JSON.parse(entry.detailsJson) as Record<string, unknown>) : null,
+    createdAt: entry.createdAt,
+  }));
+  return { items, nextCursor: rows.length > limit ? items.at(-1)!.id : null };
 }
