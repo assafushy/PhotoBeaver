@@ -111,7 +111,23 @@ function pluginCapabilities(core: Core): { faces: boolean; merge: boolean } {
   };
 }
 
-function registerIpc({ paths, logger, library, session, core, developerMode }: Services): void {
+function pluginHandlerDeps({ core, developerMode }: Services) {
+  return {
+    plugins: core.plugins!,
+    developerMode,
+    pickPackage: pickPluginPackage,
+    pickDirectory,
+    openExternal: openBrowser,
+  };
+}
+
+function userHandlerDeps({ library, session }: Services) {
+  const users = new UserService(library.db);
+  return { db: library.db, users, session, biometricAvailable: touchIdAvailable };
+}
+
+function registerIpc(services: Services): void {
+  const { paths, logger, library, session, core } = services;
   const registry = new IpcRegistry(electronTransport(), session, logger);
   registerHandlers(registry, {
     db: library.db,
@@ -119,22 +135,11 @@ function registerIpc({ paths, logger, library, session, core, developerMode }: S
     appInfo: buildAppInfo(paths),
     pickDirectory,
     openExternalUrl,
-    plugins: {
-      plugins: core.plugins!,
-      developerMode,
-      pickPackage: pickPluginPackage,
-      pickDirectory,
-      openExternal: openBrowser,
-    },
+    plugins: pluginHandlerDeps(services),
     duplicates: core.duplicates,
     people: core.people,
     session,
-    users: {
-      db: library.db,
-      users: new UserService(library.db),
-      session,
-      biometricAvailable: touchIdAvailable,
-    },
+    users: userHandlerDeps(services),
     capabilities: () => pluginCapabilities(core),
   });
 }
