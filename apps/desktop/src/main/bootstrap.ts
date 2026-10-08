@@ -125,7 +125,7 @@ function registerMedia({ paths, library, session, core }: Services): void {
 async function shutdownServices({ logger, developerMode, core, library }: Services): Promise<void> {
   logger.info({}, 'Shutting down');
   await developerMode.stop();
-  await core.stop();
+  await core.quit();
   library.close();
   logger.info({}, 'Shutdown complete');
   logger.flush();

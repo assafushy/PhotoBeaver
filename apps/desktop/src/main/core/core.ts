@@ -71,6 +71,8 @@ const NO_SECRET_STORAGE: SecretCipher = {
   decrypt: notConfigured('Secret storage'),
 };
 
+const QUIT_GRACE_MS = 1_000;
+
 const NO_BROWSER = async (): Promise<never> => notConfigured('Opening links')();
 
 /**
@@ -144,6 +146,19 @@ export class Core {
     this.people.scheduleClustering();
     void this.startWatches();
     this.options.logger.info({ recovered }, 'Core started');
+  }
+
+  /**
+   * Quit: stops leasing, gives in-flight jobs one second, then kills every plugin
+   * host without waiting for it. Interrupted jobs keep their lease and run again
+   * on the next start (SPEC 7.3).
+   */
+  async quit(): Promise<void> {
+    this.scheduler.stop();
+    this.maintenance.stop();
+    this.watches.stopAll();
+    await Promise.all(this.lanes.map((lane) => lane.stop(QUIT_GRACE_MS)));
+    this.plugins?.killAll();
   }
 
   /** Stops leasing, gives in-flight jobs 5 seconds, then stops plugin hosts (SPEC 7.7). */

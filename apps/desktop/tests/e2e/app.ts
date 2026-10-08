@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { PbApi } from '@photobeaver/shared';
-import { _electron as electron, test, type ElectronApplication, type Page } from '@playwright/test';
+import { _electron as electron, type ElectronApplication, type Page } from '@playwright/test';
 
 export type RendererGlobals = typeof globalThis & { pb: PbApi; require?: unknown };
 
@@ -90,9 +90,9 @@ function windowsProcesses(): string {
 }
 
 /**
- * Closes the app, but never waits forever: if `close()` takes longer than 20 s it
- * prints whether the app process is still alive (and the Electron processes on
- * Windows) for diagnosis, then kills the process tree.
+ * Closes the app and fails the test if it takes longer than 20 s (a quit hang),
+ * after printing whether the main process is still alive and the Electron
+ * processes (Windows), and killing the process tree so later tests can run.
  *
  * @param app - The running app.
  */
@@ -104,9 +104,8 @@ export async function closeApp(app: ElectronApplication): Promise<void> {
   ]);
   if (closed) return;
   const detail = `close() timed out; main process alive: ${isAlive(pid)}\n${windowsProcesses()}`;
-  console.warn(`[closeApp] ${detail}`);
-  test.info().annotations.push({ type: 'quit-hang', description: detail });
   await killApp(app);
+  throw new Error(`Quit hang: ${detail}`);
 }
 
 /**

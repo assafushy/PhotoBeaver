@@ -68,7 +68,14 @@ export class PluginManager {
     this.sweepTimer.unref?.();
   }
 
-  /** Stops every plugin host (quit). */
+  /** Kills every plugin host at once (app quit; plugin work is durable). */
+  killAll(): void {
+    if (this.sweepTimer) clearInterval(this.sweepTimer);
+    this.deps.watches.stopAll();
+    for (const plugin of this.loaded.values()) plugin.handle.kill();
+  }
+
+  /** Stops every plugin host gracefully. */
   async stop(): Promise<void> {
     if (this.sweepTimer) clearInterval(this.sweepTimer);
     this.deps.watches.stopAll();

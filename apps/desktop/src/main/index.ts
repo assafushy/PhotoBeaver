@@ -27,31 +27,27 @@ async function onReady(): Promise<void> {
   openWindow();
 }
 
-const SHUTDOWN_DEADLINE_MS = 10_000;
-const QUIT_BACKSTOP_MS = 5_000;
+const SHUTDOWN_DEADLINE_MS = 5_000;
 
-function deadline(ms: number): Promise<'timeout'> {
-  return new Promise((resolve) => setTimeout(() => resolve('timeout'), ms));
+function deadline(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms).unref());
 }
 
 /**
- * Stops core cleanly, then quits. Quitting must never hang: if shutdown takes
- * longer than the deadline, or Electron's own quit stalls, the process exits
- * anyway (the database is in WAL mode and every job is durable).
+ * Quits without relying on Electron's own quit sequence: stops core (plugin
+ * hosts are killed, not asked), closes the database, then exits the process.
+ * Never waits longer than the deadline (SPEC 7.3: every job is durable).
  */
-async function shutdownThenQuit(): Promise<void> {
+async function shutdownAndExit(): Promise<void> {
   const current = running;
   running = null;
-  const outcome = await Promise.race([
-    (current?.shutdown() ?? Promise.resolve()).then(
-      () => 'done' as const,
-      () => 'done' as const,
-    ),
+  await Promise.race([
+    (current?.shutdown() ?? Promise.resolve()).catch(() => undefined),
     deadline(SHUTDOWN_DEADLINE_MS),
   ]);
-  if (outcome === 'timeout') current?.logger.warn({}, 'Shutdown deadline passed, exiting');
-  setTimeout(() => app.exit(0), outcome === 'timeout' ? 0 : QUIT_BACKSTOP_MS);
-  if (outcome === 'done') app.quit();
+  lastLogger?.info({}, 'Exiting');
+  lastLogger?.flush();
+  app.exit(0);
 }
 
 function registerAppEvents(): void {
@@ -62,14 +58,13 @@ function registerAppEvents(): void {
   app.on('activate', () => {
     if (running && BrowserWindow.getAllWindows().length === 0) openWindow();
   });
-  app.on('will-quit', () => lastLogger?.info({}, 'Quitting'));
   app.on('before-quit', (event) => {
     lastLogger?.info({ firstRequest: !quitting }, 'Quit requested');
     lastLogger?.flush();
-    if (!running || quitting) return;
-    quitting = true;
     event.preventDefault();
-    void shutdownThenQuit();
+    if (quitting) return;
+    quitting = true;
+    void shutdownAndExit();
   });
 }
 

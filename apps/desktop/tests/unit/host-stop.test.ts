@@ -39,4 +39,23 @@ describe('HostHandle.stop', () => {
     expect(host.killed).toBe(true);
     await expect(connecting).resolves.toBeInstanceOf(Error);
   }, 15_000);
+
+  it('kill() ends a starting host immediately, with no deactivate wait', async () => {
+    const host = silentHost();
+    const handle = new HostHandle({
+      pluginId: 'p',
+      launcher: { launch: () => host },
+      launchOptions: { pluginId: 'p', maxOldSpaceMb: 256, logFile: '' },
+      init: testHostInit('p'),
+      registerCoreHandlers: () => undefined,
+      onStarted: () => undefined,
+      onCrashed: () => undefined,
+      logger: silentCoreLog,
+    });
+    const connecting = handle.connect().catch((error: unknown) => error);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    handle.kill();
+    expect(host.killed).toBe(true);
+    await expect(connecting).resolves.toBeInstanceOf(Error);
+  });
 });
